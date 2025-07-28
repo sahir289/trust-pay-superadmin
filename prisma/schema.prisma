@@ -1,0 +1,465 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id               String             @id @default(uuid())
+  first_name       String
+  last_name        String
+  email            String             @unique
+  contact_no       String             @unique
+  config           Json?
+  User             User[]
+  Merchant         Merchant[]
+  Vendor           Vendor[]
+  Role             Role[]
+  Designation      Designation[]
+  AccessToken      AccessToken[]
+  UserHierarchy    UserHierarchy[]
+  BankAccount      BankAccount[]
+  Payin            Payin[]
+  Payout           Payout[]
+  Settlement       Settlement[]
+  Calculation      Calculation[]
+  ChargeBack       ChargeBack[]
+  BankResponse     BankResponse[]
+  CheckUtrHistory  CheckUtrHistory[]
+  ResetDataHistory ResetDataHistory[]
+  Complaints       Complaints[]
+}
+
+model User {
+  id                  String          @id @default(uuid())
+  role_id             String
+  company_id          String
+  designation_id      String
+  first_name          String
+  last_name           String
+  email               String          @unique
+  contact_no          String          @unique
+  user_name           String          @unique
+  password            String
+  code                String          @unique
+  is_enabled          Boolean         @default(true)
+  last_login          DateTime?
+  last_logout         DateTime?
+  config              Json?
+  created_by          String?         @default(uuid())
+  updated_by          String?         @default(uuid())
+  created_at          DateTime        @default(now())
+  updated_at          DateTime        @updatedAt
+  is_obsolete         Boolean         @default(false) // for soft delete in each table
+  accessTokens        AccessToken[]
+  role                Role            @relation(fields: [role_id], references: [id])
+  designation         Designation     @relation(fields: [designation_id], references: [id])
+  Company             Company         @relation(fields: [company_id], references: [id])
+  merchantChargebacks ChargeBack[]    @relation("MerchantUser")
+  vendorChargebacks   ChargeBack[]    @relation("VendorUser")
+  UserHierarchy       UserHierarchy[]
+  Payout              Payout[]
+  Merchant            Merchant[]
+  Vendor              Vendor[]
+  Calculation         Calculation[]
+  Settlement          Settlement[]
+  BankAccount         BankAccount[]
+}
+
+model Merchant {
+  id                String   @id @default(uuid())
+  user_id           String
+  role_id           String
+  first_name        String
+  last_name         String
+  code              String
+  site_url          String
+  api_key           String   @unique
+  secret_key        String   @unique
+  public_api_key    String
+  notify_url        String?
+  return_url        String
+  min_payin         Decimal
+  max_payin         Decimal
+  payin_commission  Decimal
+  min_payout        Decimal
+  max_payout        Decimal
+  payout_commission Decimal
+  payout_notify_url String?
+  is_test_mode      Boolean  @default(false)
+  is_enabled        Boolean  @default(true)
+  dispute_enabled   Boolean  @default(true)
+  is_demo           Boolean  @default(false)
+  balance           Decimal
+  company_id        String
+  config            Json // here will add banks like this  {"banks", [bank_id1, bank_id2], "beneficiary": [{bankname, ifsc, account_name_holder, method}]} to check how many banks links to this particular merchant
+  created_by        String?
+  updated_by        String?
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+  is_obsolete       Boolean  @default(false) // for soft delete in each table
+  Role              Role     @relation(fields: [role_id], references: [id])
+  User              User     @relation(fields: [user_id], references: [id])
+  Company           Company  @relation(fields: [company_id], references: [id])
+  Payin             Payin[]
+  Payout            Payout[]
+}
+
+model Vendor {
+  id                String   @id @default(uuid())
+  user_id           String
+  role_id           String
+  first_name        String
+  last_name         String
+  code              String   @unique
+  payin_commission  Decimal
+  payout_commission Decimal
+  balance           Decimal
+  created_by        String?
+  updated_by        String?
+  config            String // here will add banks like this  { "beneficiary": [{bankname, ifsc, account_name_holder, method}]}
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+  company_id        String
+  is_obsolete       Boolean  @default(false) // for soft delete in each table
+  Role              Role     @relation(fields: [role_id], references: [id])
+  User              User     @relation(fields: [user_id], references: [id])
+  Company           Company  @relation(fields: [company_id], references: [id])
+}
+
+model Role {
+  id            String          @id @default(uuid())
+  role          String
+  created_by    String?
+  created_at    DateTime        @default(now())
+  updated_at    DateTime        @updatedAt
+  is_obsolete   Boolean         @default(false) // for soft delete in each table
+  company_id    String
+  Merchant      Merchant[]
+  Vendor        Vendor[]
+  User          User[]
+  Designation   Designation[]
+  UserHierarchy UserHierarchy[]
+  Company       Company         @relation(fields: [company_id], references: [id])
+}
+
+model Designation {
+  id          String   @id @default(uuid())
+  designation String
+  role_id     String
+  created_by  String
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+  company_id  String
+  is_obsolete Boolean @default(false) // for soft delete
+  Role        Role    @relation(fields: [role_id], references: [id])
+  Company     Company @relation(fields: [company_id], references: [id])
+
+  User User[]
+}
+
+model AccessToken {
+  id           String   @id @default(uuid())
+  user_id      String
+  access_token Json
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+  company_id   String
+  is_obsolete Boolean @default(false) // for soft delete in each table
+  user        User    @relation(fields: [user_id], references: [id])
+  Company     Company @relation(fields: [company_id], references: [id])
+}
+
+model UserHierarchy {
+  id         String   @id @default(uuid())
+  user_id    String
+  role_id    String
+  config     Json? // it will be like this {"merchant_admin_user_id || vendor_admin_user_id" : [merchant1user, merchant2user || vendor1user , vendor2user]}
+  created_by String
+  updated_by String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  company_id String
+  is_obsolete Boolean @default(false) // for soft delete in each table
+  User        User    @relation(fields: [user_id], references: [id])
+  Role        Role    @relation(fields: [role_id], references: [id])
+  Company     Company @relation(fields: [company_id], references: [id])
+}
+
+model BankAccount {
+  id            String   @id @default(uuid())
+  sno           Int      @default(autoincrement())
+  user_id       String // here user_id can be superadmin's user id or vendor's users id for creating banks
+  upi_id        String
+  upi_params    String?
+  name          String
+  ac_no         Decimal
+  ac_name       String
+  ifsc          String
+  bank_name     String
+  is_qr         Boolean  @default(true)
+  is_bank       Boolean  @default(true)
+  min     Decimal
+  max     Decimal
+  is_enabled    Boolean  @default(true)
+  payin_count   Int
+  balance       Decimal
+  today_balance Decimal
+  bank_used_for String?  @default("")
+  config        Json? // it will be like this {"merchant" : [merchant1, merchant2]}
+  created_by    String?  @default(uuid())
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+  company_id    String
+  is_obsolete Boolean @default(false) // for soft delete in each table
+  User        User    @relation(fields: [user_id], references: [id])
+  Company     Company @relation(fields: [company_id], references: [id])
+  Payin        Payin[]
+  Payout       Payout[]
+  BankResponse BankResponse[]
+  ChargeBack   ChargeBack[]
+}
+
+model Payin {
+  id                        String    @id @default(uuid())
+  sno                       Int       @default(autoincrement())
+  upi_short_code            String
+  qr_params                 String?
+  amount                    Decimal
+  status                    Status
+  is_notified               Boolean   @default(false)
+  user_submitted_utr        String?
+  currency                  Currency
+  merchant_order_id         String
+  user                      String
+  bank_acc_id               String
+  merchant_id               String
+  bank_response_id          String
+  payin_merchant_commission Decimal?
+  payin_vendor_commission   Decimal?
+  user_submitted_image      String?
+  duration                  String?
+  is_url_expires            Boolean   @default(false)
+  expiration_date           Int?
+  one_time_used             Boolean   @default(false)
+  approved_at               DateTime?
+  failed_at                 DateTime?
+  config                    Json?
+  created_at                DateTime  @default(now())
+  updated_at                DateTime  @updatedAt
+  company_id                String
+
+  is_obsolete  Boolean      @default(false) // for soft delete in each table
+  BankAccount  BankAccount  @relation(fields: [bank_acc_id], references: [id])
+  Merchant     Merchant     @relation(fields: [merchant_id], references: [id])
+  BankResponse BankResponse @relation(fields: [bank_response_id], references: [id])
+  Company      Company      @relation(fields: [company_id], references: [id])
+
+  ChargeBack       ChargeBack[]
+  CheckUtrHistory  CheckUtrHistory[]
+  ResetDataHistory ResetDataHistory[]
+  Complaints       Complaints[]
+}
+
+model Payout {
+  id                         String    @id @default(uuid())
+  sno                        Int       @default(autoincrement())
+  user_id                    String // belongs to vendor's user id and superadmin as well
+  merchant_id                String
+  bank_acc_id                String?
+  amount                     Decimal
+  status                     Status
+  failed_reason              String?
+  currency                   Currency
+  merchant_order_id          String
+  acc_no                     String
+  acc_holder_name            String
+  ifsc_code                  String
+  bank_name                  String?
+  upi_id                     String?
+  utr_id                     String?
+  notify_url                 String?
+  rejected_reason            String?
+  payout_merchant_commission Decimal
+  payout_vendor_commission   Decimal
+  approved_at                DateTime?
+  rejected_at                DateTime?
+  config                     Json?
+  created_by                 String
+  created_at                 DateTime  @default(now())
+  updated_at                 DateTime  @updatedAt
+  company_id                 String
+
+  is_obsolete Boolean     @default(false) // for soft delete in each table
+  User        User        @relation(fields: [user_id], references: [id])
+  BankAccount BankAccount @relation(fields: [from_bank_acc_id], references: [id])
+  Merchant    Merchant    @relation(fields: [merchant_id], references: [id])
+  Company     Company     @relation(fields: [company_id], references: [id])
+}
+
+model Settlement {
+  id          String    @id @default(uuid())
+  sno         Int       @default(autoincrement())
+  user_id     String
+  status      Status
+  amount      Decimal
+  method      Method
+  config      String? // acc_name, acc_no, ifsc, reference_id, rejected_reason, wallet, wallet_address, wallet_balance
+  approved_at DateTime?
+  rejected_at DateTime?
+  created_by  String
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+  company_id  String
+
+  is_obsolete Boolean @default(false) // for soft delete in each table
+  User        User    @relation(fields: [user_id], references: [id])
+  Company     Company @relation(fields: [company_id], references: [id])
+}
+
+model Calculation {
+  id                      String   @id @default(uuid())
+  user_id                 String
+  total_payin_count       Int      @default(0)
+  total_payin_amount      Float    @default(0.0)
+  total_payin_commission  Float    @default(0.0)
+  total_payout_count      Int      @default(0)
+  total_payout_amount     Float    @default(0.0)
+  total_payout_commission Float    @default(0.0)
+  total_settlement_count  Int      @default(0)
+  total_settlement_amount Float    @default(0.0)
+  total_chargeback_count  Int      @default(0)
+  total_chargeback_amount Float    @default(0.0)
+  current_balance         Float    @default(0.0)
+  net_balance             Float    @default(0.0)
+  created_at              DateTime @default(now())
+  updated_at              DateTime @updatedAt
+  company_id              String
+
+  is_obsolete Boolean @default(false) // for soft delete in each table
+  User        User    @relation(fields: [user_id], references: [id])
+  Company     Company @relation(fields: [company_id], references: [id])
+}
+
+model ChargeBack {
+  id               String   @id @default(uuid())
+  sno              Int      @default(autoincrement())
+  user             String
+  merchant_user_id String
+  vendor_user_id   String
+  payin_id         String
+  bank_acc_id      String
+  amount           Decimal
+  when             DateTime
+  created_by       String
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+  company_id       String
+
+  is_obsolete Boolean @default(false) // for soft delete in each table
+
+  // Define the relationships to the User model
+  merchantUser User @relation("MerchantUser", fields: [merchant_user_id], references: [id])
+  vendorUser   User @relation("VendorUser", fields: [vendor_user_id], references: [id])
+
+  // Define other relationships
+  Payin       Payin       @relation(fields: [payin_id], references: [id])
+  BankAccount BankAccount @relation(fields: [bank_acc_id], references: [id])
+  Company     Company     @relation(fields: [company_id], references: [id])
+}
+
+model BankResponse {
+  id             String   @id @default(uuid())
+  sno            Int      @default(autoincrement())
+  status         Status
+  bank_id        String
+  amount         Decimal
+  upi_short_code String?
+  utr            String
+  is_used        Boolean
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  created_by     String
+  company_id     String
+
+  is_obsolete Boolean     @default(false) // for soft delete in each table
+  Bank        BankAccount @relation(fields: [bank_id], references: [id])
+  Company     Company     @relation(fields: [company_id], references: [id])
+
+  Payin Payin[]
+}
+
+model CheckUtrHistory {
+  id         String   @id @default(uuid())
+  sno        Int      @default(autoincrement())
+  payin_id   String
+  utr        String
+  created_by String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  company_id String
+
+  is_obsolete Boolean @default(false) // for soft delete in each table
+  Payin       Payin   @relation(fields: [payin_id], references: [id])
+  Company     Company @relation(fields: [company_id], references: [id])
+}
+
+model ResetDataHistory {
+  id         String   @id @default(uuid())
+  sno        Int      @default(autoincrement())
+  payin_id   String
+  created_by String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  company_id String
+
+  is_obsolete Boolean @default(false) // for soft delete in each table
+  Payin       Payin   @relation(fields: [payin_id], references: [id])
+  Company     Company @relation(fields: [company_id], references: [id])
+}
+
+model Complaints {
+  id         String   @id @default(uuid())
+  sno        Int      @default(autoincrement())
+  status     String
+  payin_id   String // will extract user_id from there
+  email      String
+  config     Json // title, complaint, 
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  company_id String
+
+  Payin   Payin   @relation(fields: [payin_id], references: [id])
+  Company Company @relation(fields: [company_id], references: [id])
+}
+
+enum Status {
+  ASSIGNED
+  SUCCESS
+  DROPPED
+  DUPLICATE
+  INITIATED
+  DISPUTE
+  REVERSED
+  IMG_PENDING
+  PENDING
+  REJECTED
+  TEST_SUCCESS
+  TEST_DROPPED
+  BANK_MISMATCH
+  FAILED
+}
+
+enum Currency {
+  INR
+}
+
+enum Method {
+  BANK
+  CASH
+  AED
+  CRYPTO
+}
