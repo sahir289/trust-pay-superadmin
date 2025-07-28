@@ -1,0 +1,53 @@
+# Operating System Files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Node Modules
+node_modules/
+
+# Build and Dependency Artifacts
+dist/
+coverage/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment Variables
+.env
+.env.*
+
+# IDE and Editor Configurations
+.idea/
+.vscode/
+*.iml
+
+# Temporary Files
+*.tmp
+*.temp
+*.bak
+*.orig
+
+# Compiled Code
+*.pyc
+*.pyo
+*.class
+*.exe
+*.dll
+*.out
+*.o
+
+# Package Managers
+package-lock.json
+yarn.lock
+.pnp.cjs
+.pnp.loader.mjs
+
+# SASS and Cache Files
+.sass-cache/
+
+# System Files
+.DS_Store
+Thumbs.db
