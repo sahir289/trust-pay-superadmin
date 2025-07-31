@@ -23,7 +23,7 @@ const pool = new Pool({
       : { rejectUnauthorized: false },
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 10000,
   keepAlive: true,
 });
 
@@ -202,7 +202,7 @@ export const buildSelectQuery = (
   }
 
   // Handle startDate and endDate
-  if (filters.startDate && filters.endDate) {
+  if (filters?.startDate && filters?.endDate) {
     const startDate = new Date(filters.startDate).toISOString().split('T')[0];
     const endDate = new Date(filters.endDate).toISOString().split('T')[0];
     conditions.push(
@@ -212,7 +212,7 @@ export const buildSelectQuery = (
   }
 
   // Add WHERE conditions
-  if (conditions.length) {
+  if (conditions?.length) {
     if (query.toLowerCase().includes('where')) {
       query += ` AND ${conditions.join(' AND ')}`;
     } else {
@@ -220,7 +220,7 @@ export const buildSelectQuery = (
     }
   }
 
-  if (filters.or && typeof filters.or === 'object') {
+  if (filters?.or && typeof filters?.or === 'object') {
     const orConditions = [];
     for (const key in filters.or) {
       const value = filters.or[key];

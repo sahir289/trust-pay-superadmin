@@ -16,7 +16,6 @@ import settlement from './settlement/index.js';
 import userHierarchy from './userHierarchy/index.js';
 import payOut from './payOut/index.js';
 import complaints from './complaints/index.js';
-import gatherAllData from '../cron/gatherAllData.js';
 import reports from './reports/index.js';
 import cron from '../cron/index.js';
 import swaggerUi from 'swagger-ui-express';
@@ -54,7 +53,6 @@ router.use('/beneficiaryAccounts', beneficiaryAccounts);
 // Public routes (no authorization required)
 router.use('/ping', ping);
 router.use('/auth', auth);
-router.use('/initialize-cronjob', gatherAllData);
 router.use('/complaints', complaints);
 router.use('/cron', cron);
 router.use('/common', common);

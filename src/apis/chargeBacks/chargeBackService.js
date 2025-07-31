@@ -25,13 +25,10 @@ import { filterResponse } from '../../helpers/index.js';
 import { getCalculationforCronDao } from '../calculation/calculationDao.js';
 import { updateCalculationBalanceDao } from '../calculation/calculationDao.js';
 import { logger } from '../../utils/logger.js';
-import {
-  getMerchantsDao,
-  updateMerchantDao,
-} from '../merchants/merchantDao.js';
 import { getUserHierarchysDao } from '../userHierarchy/userHierarchyDao.js';
 // import { getVendorsDao,updateVendorDao } from '../vendors/vendorDao.js';
 import { getPayInDaoByCode } from '../payIn/payInDao.js';
+import { getCompanyDao, updateCompanyDao } from '../company/companyDao.js';
 // import { notifyAdminsAndUsers } from '../../utils/notifyUsers.js';
 const createChargeBackService = async (
   payload,
@@ -215,32 +212,20 @@ const getChargeBacksService = async (
 const getChargeBacksBySearchService = async (
   filters,
   role,
-  designation,
+  page,
+  limit,
   user_id,
+  sortOrder = 'DESC',
+  // designation,
 ) => {
   try {
-    const pageNum = parseInt(filters.page);
-    const limitNum = parseInt(filters.limit);
-    if (isNaN(pageNum) || isNaN(limitNum) || pageNum < 1 || limitNum < 1) {
-      throw new BadRequestError('Invalid pagination parameters');
-    }
-    const searchTerms = filters.search
-      .split(',')
-      .map((term) => term.trim())
-      .filter((term) => term.length > 0);
-
-    if (searchTerms.length === 0) {
-      throw new BadRequestError('Please provide valid search terms');
-    }
-    const offset = (pageNum - 1) * limitNum;
-
+    // Determine columns based on role
     const filterColumns =
       role === Role.MERCHANT
         ? merchantColumns.CHARGE_BACK
         : role === Role.VENDOR
           ? vendorColumns.CHARGE_BACK
           : columns.CHARGE_BACK;
-    // TODO: add designation constants
 
     if (role == Role.MERCHANT) {
       filters.merchant_user_id = [user_id];
@@ -249,7 +234,7 @@ const getChargeBacksBySearchService = async (
       filters.vendor_user_id = [user_id];
     }
 
-    if (role === Role.MERCHANT || designation === Role.MERCHANT_OPERATIONS) {
+    if (role === Role.MERCHANT) {
       // user_id is unique
       const userHierarchys = await getUserHierarchysDao({ user_id });
       if (userHierarchys || userHierarchys.length > 0) {
@@ -267,15 +252,43 @@ const getChargeBacksBySearchService = async (
       }
     }
 
-    const data = await getChargeBacksBySearchDao(
+    // Parse and validate pagination parameters
+    const pageNumber =
+      page === 'no_pagination'
+        ? null
+        : Math.max(1, parseInt(String(page), 10) || 1);
+    const pageSize =
+      limit === 'no_pagination'
+        ? null
+        : Math.max(1, Math.min(100, parseInt(String(limit), 10) || 10)); // Added upper limit
+    let searchTerms;
+    if (filters.search) {
+       searchTerms = filters.search
+        .split(',')
+        .map((term) => term.trim())
+        .filter((term) => term.length > 0);
+    }
+   
+    // Call DAO with all required parameters
+    const chargeBacks = await getChargeBacksBySearchDao(
       filters,
-      searchTerms,
-      limitNum,
-      offset,
+      pageNumber,
+      pageSize,
+      'sno',
+      sortOrder,
       filterColumns,
+      role,
+      searchTerms,
     );
 
-    return data;
+    // logger.info('Fetched ChargeBacks successfully', {
+    //   role,
+    //   page: pageNumber,
+    //   limit: pageSize,
+    //   filterCount: Object.keys(filters).length,
+    // });
+
+    return chargeBacks;
   } catch (error) {
     logger.error('Error while fetching chargeback by search', error);
     throw new InternalServerError(error.message);
@@ -301,53 +314,45 @@ const blockChargebackUserService = async (ids) => {
       id: payinId,
       company_id: companyId,
     });
-    const code = payindata[0].code;
     const userIp = payindata[0].config?.user?.user_ip;
-    const merchant = await getMerchantsDao({ code });
-    if (!merchant || merchant.length === 0) {
-      throw new BadRequestError('Merchant not found for the given code!');
-    }
-    const merchantId = payindata[0].merchant_id;
+    const company = await getCompanyDao({ id: companyId });
     const userId = payindata[0].user;
-    const existingBlockedUsers = merchant[0]?.config?.blocked_users || [];
+    const existingBlockedUsers = company[0]?.config?.blocked_users || [];
     const alreadyExists = existingBlockedUsers.some(
       (entry) => entry.userId === userId && entry.user_ip === userIp,
     );
     let merchantDetails;
     let updatedBlockedUsers;
     if (alreadyExists) {
-      const updatedBlockedUsers = existingBlockedUsers.filter(
+     const updatedBlockedUsers = existingBlockedUsers.filter(
         (entry) => !(entry.userId === userId && entry.user_ip === userIp),
       );
       const updatedConfig = {
-        ...merchant[0].config,
+        ...company[0].config,
         blocked_users: updatedBlockedUsers,
       };
-      merchantDetails = await updateMerchantDao(
-        { id: merchantId },
+      merchantDetails = await updateCompanyDao(
+        { id: companyId },
         { config: updatedConfig },
       );
-      await updateChargeBackDao(
-        { id: chargebackdata[0].id },
-        { config: updatedConfig },
-      );
+     
     } else {
       updatedBlockedUsers = [
         ...existingBlockedUsers,
         { userId: userId, user_ip: userIp },
       ];
       const updatedConfig = {
-        ...merchant[0].config,
+        ...company[0].config,
         blocked_users: updatedBlockedUsers,
       };
 
-      merchantDetails = await updateMerchantDao(
-        { id: merchantId },
+      merchantDetails = await updateCompanyDao(
+        { id: companyId },
         { config: updatedConfig },
       );
       await updateChargeBackDao(
         { id: chargebackdata[0].id },
-        { config: updatedConfig },
+        { config: updatedConfig }
       );
     }
 

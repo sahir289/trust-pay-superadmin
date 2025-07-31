@@ -276,197 +276,282 @@ const getSettlementDao = async (
   }
 };
 
+
+
+
 const getSettlementsBySearchDao = async (
-  filters,
-  searchTerms,
-  limitNum,
-  offset,
-  columns,
-  role,
+  filters = {},
+  page = 1,
+  pageSize = 10,
+  sortBy = 'sno',
+  sortOrder = 'DESC',
+  columns = [],
+  searchTerms = [],
 ) => {
   try {
-    const { SETTLEMENT, USER, ROLE, MERCHANT, VENDOR, BENEFICIARY_ACCOUNTS } =
-      tableName;
-    const conditions = [];
-    const values = [filters.company_id, role];
-    let paramIndex = 3;
+    const conditions = ['s.is_obsolete = false'];
+    const queryParams = [];
+    let paramIndex = 1;
 
-    let queryText = `
-    SELECT 
-    ${columns.map((col) => `s.${col}`).join(', ')}${columns.length > 0 ? ',' : ''}
-    CASE
-      WHEN $2 = 'MERCHANT' THEN COALESCE(m.config->>'sub_code', m.code)
-      WHEN $2 = 'VENDOR' THEN v.code
-      WHEN $2 = 'ADMIN' THEN 
-        CASE 
-          WHEN r.role = 'VENDOR' THEN v.code
-          ELSE COALESCE(m.config->>'sub_code', m.code)
-        END
-      ELSE NULL
-    END AS code,
-        CASE
-        WHEN s.config->>'bank_id' IS NOT NULL THEN
-          (
-            SELECT jsonb_build_object(
-              'beneficiary_bank_name', COALESCE(ba.bank_name, s.config->>'bank_name', ''),
-              'acc_holder_name', COALESCE(ba.acc_holder_name, ''),
-              'acc_no', COALESCE(ba.acc_no, ''),
-              'ifsc', COALESCE(ba.ifsc, '')
-              ${
-                Object.keys(filters).length > 0
-                  ? ', ' +
-                    Object.keys(filters)
-                      .filter(
-                        (key) =>
-                          ![
-                            'beneficiary_bank_name',
-                            'acc_holder_name',
-                            'acc_no',
-                            'ifsc',
-                          ].includes(key),
-                      )
-                      .map(
-                        (key) => `'${key}', COALESCE(s.config->>'${key}', '')`,
-                      )
-                      .join(', ')
-                  : ''
-              }
-            ) || (
-              SELECT jsonb_object_agg(key, value)
-              FROM jsonb_each(s.config::jsonb)
-              WHERE key NOT IN ('beneficiary_bank_name', 'acc_holder_name', 'acc_no', 'ifsc'${
-                Object.keys(filters).length > 0
-                  ? ', ' +
-                    Object.keys(filters)
-                      .map((key) => `'${key}'`)
-                      .join(', ')
-                  : ''
-              })
-            )
-          )
-        ELSE
-          s.config::jsonb
-      END AS config,
-      COALESCE(uc.user_name, s.created_by::text) AS created_by,
-      COALESCE(uu.user_name, s.updated_by::text) AS updated_by
-      FROM "${SETTLEMENT}" s
-      JOIN "${USER}" u ON s.user_id = u.id
-      LEFT JOIN public."${USER}" uc ON s.created_by = uc.id
-      LEFT JOIN public."${USER}" uu ON s.updated_by = uu.id
-      LEFT JOIN "${ROLE}" r ON u.role_id = r.id
-      LEFT JOIN public."${BENEFICIARY_ACCOUNTS}" ba ON s.config->>'bank_id' = ba.id
-      LEFT JOIN public."${MERCHANT}" m ON u.id = m.user_id AND r.role IN ('MERCHANT', 'ADMIN')
-      LEFT JOIN public."${VENDOR}" v ON u.id = v.user_id AND r.role = 'VENDOR'
-      WHERE s.is_obsolete = false 
-      AND s.company_id = $1
+    // Add dynamic code and user_name fields
+    const columnSelection =
+      columns.length > 0
+        ? columns.map((col) => `s.${col}`).join(', ')
+        : `
+          s.*,
+          u.user_name,
+          r.role,
+          ba.bank_name,
+          ba.acc_holder_name,
+          ba.acc_no,
+          ba.ifsc,
+          m.code AS merchant_code,
+          v.code AS vendor_code,
+          CASE
+            WHEN r.role = 'MERCHANT' THEN COALESCE(m.config->>'sub_code', m.code)
+            WHEN r.role = 'VENDOR' THEN v.code
+            WHEN r.role = 'ADMIN' THEN COALESCE(m.config->>'sub_code', m.code)
+            ELSE NULL
+          END AS code,
+          COALESCE(uc.user_name, s.created_by::text) AS created_by,
+          COALESCE(uu.user_name, s.updated_by::text) AS updated_by
+        `;
+
+    // Full-text search conditions
+    if (searchTerms.length > 0) {
+      const searchConditions = [];
+
+      searchTerms.forEach((term) => {
+        if (term.toLowerCase() === 'true' || term.toLowerCase() === 'false') {
+          const boolValue = term.toLowerCase() === 'true';
+          searchConditions.push(
+            `(s.is_notified = $${paramIndex} OR s.is_approved = $${paramIndex} OR s.is_rejected = $${paramIndex})`,
+          );
+          queryParams.push(boolValue);
+          paramIndex++;
+        } else {
+          searchConditions.push(
+            `(
+              LOWER(s.id::text) LIKE LOWER($${paramIndex}) OR
+              LOWER(s.sno::text) LIKE LOWER($${paramIndex}) OR
+              LOWER(s.status) LIKE LOWER($${paramIndex}) OR
+              LOWER(s.method) LIKE LOWER($${paramIndex}) OR
+              LOWER(u.user_name) LIKE LOWER($${paramIndex}) OR
+              LOWER(r.role) LIKE LOWER($${paramIndex}) OR
+              LOWER(m.code) LIKE LOWER($${paramIndex}) OR
+              LOWER(v.code) LIKE LOWER($${paramIndex}) OR
+              LOWER(ba.bank_name) LIKE LOWER($${paramIndex}) OR
+              LOWER(ba.acc_holder_name) LIKE LOWER($${paramIndex}) OR
+              LOWER(ba.acc_no) LIKE LOWER($${paramIndex}) OR
+              LOWER(ba.ifsc) LIKE LOWER($${paramIndex}) OR
+              s.amount::text LIKE $${paramIndex} OR
+          LOWER(s.config->>'amount') LIKE LOWER($${paramIndex}) OR
+          LOWER(s.config->>'reference_id') LIKE LOWER($${paramIndex}) OR
+          LOWER(s.config->>'debit_credit') LIKE LOWER($${paramIndex}) OR
+          LOWER(s.config->>'ifsc') LIKE LOWER($${paramIndex}) OR
+          LOWER(s.config->>'acc_no') LIKE LOWER($${paramIndex}) OR
+          LOWER(s.config->>'acc_holder_name') LIKE LOWER($${paramIndex}) OR
+          LOWER(s.config->>'bank_name') LIKE LOWER($${paramIndex}) OR
+          LOWER(s.config->>'bank_namebank_name') LIKE LOWER($${paramIndex}) OR
+          LOWER(s.config->>'rejected_reason') LIKE LOWER($${paramIndex})           )`,
+          );
+          queryParams.push(`%${term}%`);
+          paramIndex++;
+        }
+      });
+
+      if (searchConditions.length > 0) {
+        conditions.push(`(${searchConditions.join(' OR ')})`);
+      }
+    }
+    // Filter handlers
+    const filterHandlers = {
+      user_id: (val) => {
+        const values = Array.isArray(val)
+          ? val
+          : val.split(',').map((v) => v.trim());
+        const placeholders = values
+          .map((_, i) => `$${paramIndex + i}`)
+          .join(',');
+        conditions.push(`s.user_id IN (${placeholders})`);
+        queryParams.push(...values);
+        paramIndex += values.length;
+      },
+      role: (val) => {
+        conditions.push(`r.role = $${paramIndex}`);
+        queryParams.push(val);
+        paramIndex++;
+      },
+      status: (val) => {
+        const values = Array.isArray(val) ? val : [val];
+        const placeholders = values
+          .map((_, i) => `$${paramIndex + i}`)
+          .join(',');
+        conditions.push(`s.status IN (${placeholders})`);
+        queryParams.push(...values);
+        paramIndex += values.length;
+      },
+      method: (val) => {
+        const values = Array.isArray(val) ? val : [val];
+        const placeholders = values
+          .map((_, i) => `$${paramIndex + i}`)
+          .join(',');
+        conditions.push(`s.method IN (${placeholders})`);
+        queryParams.push(...values);
+        paramIndex += values.length;
+      },
+      start_date: (val, filters) => {
+        if (filters.end_date) {
+          const start = dayjs.tz(`${val} 00:00:00`, IST).utc().format();
+          const end = dayjs
+            .tz(`${filters.end_date} 23:59:59.999`, IST)
+            .utc()
+            .format();
+          conditions.push(
+            `s.created_at BETWEEN $${paramIndex} AND $${paramIndex + 1}`,
+          );
+          queryParams.push(start, end);
+          paramIndex += 2;
+        }
+      },
+      end_date: () => {}, // Handled by start_date
+      merchant_codes: (val) => {
+        const values = Array.isArray(val)
+          ? val
+          : val.split(',').map((v) => v.trim());
+        const placeholders = values
+          .map((_, i) => `$${paramIndex + i}`)
+          .join(',');
+        conditions.push(`m.code IN (${placeholders})`);
+        queryParams.push(...values);
+        paramIndex += values.length;
+      },
+      vendor_codes: (val) => {
+        const values = Array.isArray(val)
+          ? val
+          : val.split(',').map((v) => v.trim());
+        const placeholders = values
+          .map((_, i) => `$${paramIndex + i}`)
+          .join(',');
+        conditions.push(`v.code IN (${placeholders})`);
+        queryParams.push(...values);
+        paramIndex += values.length;
+      },
+      amount: (val) => {
+        conditions.push(`s.amount = $${paramIndex}`);
+        queryParams.push(parseFloat(val));
+        paramIndex++;
+      },
+      is_approved: (val) => {
+        conditions.push(`s.is_approved = $${paramIndex}`);
+        queryParams.push(val === 'true');
+        paramIndex++;
+      },
+      is_rejected: (val) => {
+        conditions.push(`s.is_rejected = $${paramIndex}`);
+        queryParams.push(val === 'true');
+        paramIndex++;
+      },
+      is_notified: (val) => {
+        conditions.push(`s.is_notified = $${paramIndex}`);
+        queryParams.push(val === 'true');
+        paramIndex++;
+      },
+      bank_id: (val) => {
+        conditions.push(`s.config->>'bank_id' = $${paramIndex}`);
+        queryParams.push(val);
+        paramIndex++;
+      },
+      updated_at: (val) => {
+        const [day, month, year] = val.split('-');
+        const properDateStr = `${year}-${month}-${day}`;
+        const start = dayjs.tz(`${properDateStr} 00:00:00`, IST).utc().format();
+        const end = dayjs
+          .tz(`${properDateStr} 23:59:59.999`, IST)
+          .utc()
+          .format();
+        conditions.push(
+          `s.updated_at BETWEEN $${paramIndex} AND $${paramIndex + 1}`,
+        );
+        queryParams.push(start, end);
+        paramIndex += 2;
+      },
+    };
+
+    // Apply filters
+    for (const [key, val] of Object.entries(filters)) {
+      if (val !== undefined && val !== null && filterHandlers[key]) {
+        filterHandlers[key](val, filters);
+      }
+    }
+
+    // Base query
+    const baseQuery = `
+      SELECT ${columnSelection} ,
+       CASE
+    WHEN r.role = 'MERCHANT' THEN COALESCE(m.config->>'sub_code', m.code)
+    WHEN r.role = 'VENDOR' THEN v.code
+    WHEN r.role = 'ADMIN' THEN COALESCE(m.config->>'sub_code', m.code)
+    ELSE NULL
+  END AS code,
+  COALESCE(uc.user_name, s.created_by::text) AS created_by,
+  COALESCE(uu.user_name, s.updated_by::text) AS updated_by
+      FROM "Settlement" s
+      JOIN "User" u ON s.user_id = u.id
+      LEFT JOIN "Role" r ON u.role_id = r.id
+      LEFT JOIN "BeneficiaryAccounts" ba ON s.config->>'bank_id' = ba.id
+      LEFT JOIN "Merchant" m ON u.id = m.user_id AND r.role IN ('MERCHANT', 'ADMIN')
+      LEFT JOIN "Vendor" v ON u.id = v.user_id AND r.role = 'VENDOR'
+      LEFT JOIN "User" uc ON s.created_by = uc.id
+      LEFT JOIN "User" uu ON s.updated_by = uu.id
+      WHERE ${conditions.join(' AND ')}
     `;
 
-    // Handle additional filters
-    if (filters.role_name) {
-      queryText += ` AND r.role = $${paramIndex}`;
-      values.push(filters.role_name);
-      paramIndex++;
-    }
+    // Count query
+    const countQuery = `SELECT COUNT(*) AS total FROM (${baseQuery}) AS count_table`;
+    const countResult = await executeQuery(countQuery, queryParams);
+    const totalCount = parseInt(countResult.rows[0].total);
 
-    if (filters.status) {
-      queryText += ` AND s.status = $${paramIndex}`;
-      values.push(filters.status);
-      paramIndex++;
-    }
+    // Sorting & Pagination
+    const validSortColumns = [
+      'sno',
+      'created_at',
+      'updated_at',
+      'amount',
+      'status',
+    ];
+    const safeSortBy = validSortColumns.includes(sortBy) ? sortBy : 'sno';
+    const safeSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
+    const finalQuery = `
+      ${baseQuery}
+      ORDER BY ${safeSortBy} ${safeSortOrder}
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+    queryParams.push(pageSize, (page - 1) * pageSize);
+    // Final result
+    let result = await executeQuery(finalQuery, queryParams);
     if (
-      filters &&
-      Array.isArray(filters.user_id) &&
-      filters.user_id.length > 0
+      totalCount > 0 &&
+      result.rows.length === 0 &&
+      (page - 1) * pageSize > 0
     ) {
-      const placeholders = filters.user_id
-        .map((_, idx) => `$${paramIndex + idx}`)
-        .join(', ');
-      queryText += ` AND s.user_id IN (${placeholders})`;
-      values.push(...filters.user_id);
-      paramIndex += filters.user_id.length;
+      queryParams[queryParams.length - 1] = 0; // Reset offset to 0
+      result = await executeQuery(finalQuery, queryParams);
     }
-
-    if (filters.user_codes) {
-      const codeArray = Array.isArray(filters.user_codes)
-        ? filters.user_codes
-        : filters.user_codes
-            .split(',')
-            .map((c) => c.trim())
-            .filter(Boolean);
-
-      if (codeArray.length > 0) {
-        const placeholders = codeArray
-          .map((_, idx) => `$${paramIndex + idx}`)
-          .join(', ');
-        queryText += ` AND u.code IN (${placeholders})`;
-        values.push(...codeArray);
-        paramIndex += codeArray.length;
-      }
-    }
-
-    searchTerms.forEach((term) => {
-      if (term.toLowerCase() === 'true' || term.toLowerCase() === 'false') {
-        const boolValue = term.toLowerCase() === 'true';
-        conditions.push(`
-          (
-            s.is_obsolete = $${paramIndex}
-          )
-        `);
-        values.push(boolValue);
-        paramIndex++;
-      } else {
-        conditions.push(`
-          (
-            LOWER(s.sno::text) LIKE LOWER($${paramIndex})
-            OR LOWER(s.id::text) LIKE LOWER($${paramIndex})
-            OR LOWER(s.user_id::text) LIKE LOWER($${paramIndex})
-            OR LOWER(s.amount::text) LIKE LOWER($${paramIndex})
-            OR LOWER(s.status) LIKE LOWER($${paramIndex})
-            OR LOWER(s.method) LIKE LOWER($${paramIndex})
-            OR LOWER(u.code) LIKE LOWER($${paramIndex})
-            OR LOWER(u.first_name || ' ' || u.last_name) LIKE LOWER($${paramIndex})
-            OR LOWER(r.role) LIKE LOWER($${paramIndex})
-            OR LOWER(COALESCE(s.config->>'reference_id', '')) LIKE LOWER($${paramIndex})
-            OR LOWER(COALESCE(s.config->>'rejected_reason', '')) LIKE LOWER($${paramIndex})
-          )
-        `);
-        values.push(`%${term}%`);
-        paramIndex++;
-      }
-    });
-
-    if (conditions.length > 0) {
-      queryText += ' AND (' + conditions.join(' OR ') + ')';
-    }
-
-    const countQuery = `SELECT COUNT(*) as total FROM (${queryText}) as count_table`;
-
-    queryText += `
-      ORDER BY s.created_at DESC
-      LIMIT $${paramIndex}
-      OFFSET $${paramIndex + 1}
-    `;
-    values.push(limitNum, offset);
-
-    // Optional: log for debugging
-    logger.log(countQuery, queryText);
-    const countResult = await executeQuery(countQuery, values.slice(0, -2));
-    const searchResult = await executeQuery(queryText, values);
-
-    const totalItems = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(totalItems / limitNum);
-
     return {
-      totalCount: totalItems,
-      totalPages,
-      settlements: searchResult.rows,
+      totalCount,
+      totalPages: Math.ceil(totalCount / pageSize),
+      settlements: result.rows,
     };
   } catch (error) {
-    logger.error('Error in getSettlementsBySearchDao:', error.message);
+    logger.error('Error in getSettlementsBySearchDao:', error);
     throw error;
   }
 };
+  
+
+
 
 const getSettlementDaoforInternalTransfer = async (utr, method) => {
   try {

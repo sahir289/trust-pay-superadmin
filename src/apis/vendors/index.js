@@ -48,12 +48,12 @@ const router = express.Router();
  */
 
 router.get(
-  '/',
+  '/get',
   [isAuthenticated, authorized(AccessRoles.VENDOR)],
   tryCatchHandler(getVendors),
 );
 router.get(
-  '/search',
+  '/',
   [isAuthenticated, authorized(AccessRoles.VENDOR)],
   tryCatchHandler(getVendorsBySearch),
 );

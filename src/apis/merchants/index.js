@@ -42,13 +42,13 @@ const router = express.Router();
  *                     example: "active"
  */
 router.get(
-  '/',
+  '/getmerchant',
   [isAuthenticated, authorized(AccessRoles.MERCHANT)],
   tryCatchHandler(getMerchants),
 );
 
 router.get(
-  '/search',
+  '/',
   [isAuthenticated, authorized(AccessRoles.MERCHANT)],
   tryCatchHandler(getMerchantsBySearch),
 );

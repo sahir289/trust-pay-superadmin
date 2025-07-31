@@ -14,7 +14,7 @@ import {
   getSettlementsBySearchService,
   updateSettlementService,
 } from './settlementServices.js';
-import { BadRequestError } from '../../utils/appErrors.js';
+// import { BadRequestError } from '../../utils/appErrors.js';
 import { getBankResponseDao } from '../bankResponse/bankResponseDao.js';
 import { getUserHierarchysDao } from '../userHierarchy/userHierarchyDao.js';
 import { Role } from '../../constants/index.js';
@@ -71,25 +71,42 @@ const getSettlementController = async (req, res) => {
 };
 
 const getSettlementsBySearch = async (req, res) => {
-  const { company_id, role, user_id, designation } = req.user;
-  const { search, page = 1, limit = 10, role_name } = req.query;
-  if (!search) {
-    throw new BadRequestError('search is required');
-  }
-  const data = await getSettlementsBySearchService(
-    {
-      company_id,
-      search,
-      page,
-      limit,
-      role_name,
-      ...req.query,
-    },
+  const { company_id, user_id, role, designation } = req.user || {};
+  const { role_name, page, limit, search, sortBy, sortOrder, ...filters } =
+    req.query;
+
+  const parsedPage = page === 'no_pagination' ? null : Number(page) || 1;
+  const parsedLimit = limit === 'no_pagination' ? null : Number(limit) || 10;
+
+  // Prepare filters object
+  const filterParams = {
+    ...(search && { search }),
+    ...(role_name && { role: role_name }),
+    ...filters,
+  };
+
+  // Convert page and limit to numbers
+  const pageNum = parseInt(parsedPage, 10);
+  const limitNum = parseInt(parsedLimit, 10);
+  // Call service with structured parameters
+  const settlementData = await getSettlementsBySearchService(
+    { company_id, role_name },
+    filterParams,
+    pageNum,
+    limitNum,
+    sortBy,
+    sortOrder,
     role,
-    designation,
     user_id,
+    designation,
   );
-  return sendSuccess(res, data, 'settlements fetched successfully');
+
+  if (!settlementData || settlementData.length === 0) {
+    return sendSuccess(res, [], 'No settlements found');
+  }
+
+  // Send success response
+  return sendSuccess(res, settlementData, 'Settlements retrieved successfully');
 };
 
 const createSettlementController = async (req, res) => {
@@ -120,7 +137,7 @@ const createSettlementController = async (req, res) => {
     throw new ValidationError(joiValidation.error);
   }
   //-- utr and amount for internal tranfer case
-  if (payload.amount && payload.utr) {
+  if (payload.amount && payload.utr && (payload.method === 'INTERNAL_TRANSFER' || payload.method === 'INTERNAL_BANK_TRANSFER')) {
     const bankRes = await getBankResponseDao({
       utr: payload.utr,
       status: '/success',

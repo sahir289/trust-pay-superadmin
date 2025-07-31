@@ -47,13 +47,13 @@ import { AccessRoles } from '../../constants/index.js';
  *         description: Internal server error
  */
 router.get(
-  '/',
+  '/get',
   [isAuthenticated, authorized(AccessRoles.BENEFICIARY_ACCOUNTS)],
   tryCatchHandler(getBeneficiaryAccount),
 );
 
 router.get(
-  '/search',
+  '/',
   [isAuthenticated, authorized(AccessRoles.BENEFICIARY_ACCOUNTS)],
   tryCatchHandler(getBeneficiaryAccountBySearch),
 );

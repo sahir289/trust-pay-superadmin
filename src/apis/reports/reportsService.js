@@ -19,7 +19,7 @@ import { logger } from '../../utils/logger.js';
 const getPayInReportService = async (req) => {
   try {
     const { company_id, role } = req.user;
-    const { code, startDate, endDate, status } = req.query;
+    const { code, startDate, endDate, status, updatedPayin } = req.query;
     let startDateTime, endDateTime;
     if (startDate && endDate) {
       startDateTime = dayjs
@@ -44,6 +44,7 @@ const getPayInReportService = async (req) => {
         company_id,
         role,
         status,
+        updatedPayin
       );
     } else {
       const vendorDetails = await getVendorsDaoArray(company_id, codes);
@@ -57,6 +58,7 @@ const getPayInReportService = async (req) => {
         company_id,
         role,
         status,
+        updatedPayin
       );
     }
     return result;

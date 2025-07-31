@@ -33,24 +33,20 @@ const getUsers = async (req, res) => {
 };
 
 const getUsersBySearch = async (req, res) => {
-  const { company_id, role, designation, user_id } = req.user;
-  const { search, page = 1, limit = 10 } = req.query;
-  if (!search) {
-    throw new BadRequestError('search is required');
-  }
+  const { role, company_id, user_id, designation } = req.user;
+  const { page, limit } = req.query;
   const data = await getUsersBySearchService(
     {
       company_id,
-      search,
-      page,
-      limit,
       ...req.query,
     },
     role,
+    page,
+    limit,
     designation,
     user_id,
   );
-  return sendSuccess(res, data, 'Users fetched successfully');
+  return sendSuccess(res, data, 'getUsers successfully');
 };
 
 const getUsersByUserName = async (req, res) => {

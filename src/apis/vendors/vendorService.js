@@ -1,5 +1,4 @@
-import { columns, Role, vendorColumns } from '../../constants/index.js';
-import { filterResponse } from '../../helpers/index.js';
+import { Role } from '../../constants/index.js';
 
 import {
   beginTransaction,
@@ -20,7 +19,6 @@ import {
   updateVendorDao,
   getAllVendorsDao,
 } from './vendorDao.js';
-import { BadRequestError } from '../../utils/appErrors.js';
 import { createCalculationDao } from '../calculation/calculationDao.js';
 import { updateBankaccountDao } from '../bankAccounts/bankaccountDao.js';
 import { updateUserDao } from '../users/userDao.js';
@@ -141,33 +139,20 @@ const getVendorsCodeService = async (filters, roleIs, user_id, designation) => {
     }
   }
 };
+
 const getVendorsBySearchService = async (
   filters,
-  role,
-  designation,
+  roleIs,
+  page,
+  limit,
   user_id,
+  designation,
 ) => {
   try {
-    const pageNum = parseInt(filters.page);
-    const limitNum = parseInt(filters.limit);
-    if (isNaN(pageNum) || isNaN(limitNum) || pageNum < 1 || limitNum < 1) {
-      throw new BadRequestError('Invalid pagination parameters');
-    }
-    const searchTerms = filters.search
-      .split(',')
-      .map((term) => term.trim())
-      .filter((term) => term.length > 0);
-
-    if (searchTerms.length === 0) {
-      throw new BadRequestError('Please provide valid search terms');
-    }
-    const offset = (pageNum - 1) * limitNum;
-
-    const filterColumns =
-      role === Role.VENDOR ? vendorColumns.VENDOR : columns.VENDOR;
-    // TODO: add designation constants
+    const pageNumber = parseInt(page, 10) || 1;
+    const pageSize = parseInt(limit, 10) || 10;
     let parentUserId;
-    if (role === Role.VENDOR) {
+    if (roleIs === Role.VENDOR) {
       if (designation === Role.VENDOR_OPERATIONS) {
         const UserHierarchy = await getUserHierarchysDao({ user_id });
         const userHierarchy = UserHierarchy[0];
@@ -178,12 +163,19 @@ const getVendorsBySearchService = async (
         filters.user_id = parentUserId;
       }
     }
+    let searchTerms;
+    if (filters.search) {
+      searchTerms = filters.search
+        .split(',')
+        .map((term) => term.trim())
+        .filter((term) => term.length > 0);
+    }
+    filters.role = roleIs
     const data = await getVendorsBySearchDao(
       filters,
+      pageNumber,
+      pageSize,
       searchTerms,
-      limitNum,
-      offset,
-      filterColumns,
     );
 
     return data;
@@ -193,16 +185,14 @@ const getVendorsBySearchService = async (
   }
 };
 
-const updateVendorService = async (id, payload, role) => {
+const updateVendorService = async (id, payload, ) => {
   let conn;
   try {
-    const filterColumns =
-      role === Role.VENDOR ? vendorColumns.VENDOR : columns.VENDOR;
+  
     conn = await getConnection();
     await beginTransaction(conn); // Start a transaction
     const data = await updateVendorDao(id, payload, conn); // Adjust DAO call for update
     await commit(conn); // Commit the transaction
-    const finalResult = filterResponse(data, filterColumns);
     // await notifyAdminsAndUsers({
     //   conn,
     //   company_id: data.company_id,
@@ -212,7 +202,7 @@ const updateVendorService = async (id, payload, role) => {
     //   category: 'Client',
     //   subCategory: 'Vendor'
     // });
-    return finalResult;
+    return data;
   } catch (error) {
     if (conn) {
       try {

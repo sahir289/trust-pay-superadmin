@@ -145,13 +145,20 @@ const getAllUsersDao = async (
 export const getUsersBySearchDao = async (
   filters,
   searchTerms,
-  limitNum,
-  offset,
+  pageNumber = 1, 
+  pageSize = 10, 
 ) => {
   try {
     const conditions = [];
     const values = [filters.company_id];
     let paramIndex = 2;
+
+    const validatedPageSize = Math.min(
+      Math.max(parseInt(pageSize) || 10, 1),
+      100,
+    ); // Enforce 1-100 limit
+    const validatedPageNumber = Math.max(parseInt(pageNumber) || 1);
+    const offset = (validatedPageNumber - 1) * validatedPageSize;
 
     let queryText = `
       SELECT 
@@ -196,58 +203,59 @@ export const getUsersBySearchDao = async (
       }
     }
 
-    searchTerms.forEach((term) => {
-      if (term.toLowerCase() === 'true' || term.toLowerCase() === 'false') {
-        const boolValue = term.toLowerCase() === 'true';
-        conditions.push(`
-          (
-            "User".is_enabled = $${paramIndex}
-          )
-        `);
-        values.push(boolValue);
-        paramIndex++;
-      } else {
-        conditions.push(`
-          
-          (
-            LOWER("User".id::text) LIKE LOWER($${paramIndex})
-            OR LOWER("User".role_id::text) LIKE LOWER($${paramIndex})
-            OR LOWER("User".designation_id::text) LIKE LOWER($${paramIndex})
-            OR LOWER("User".first_name) LIKE LOWER($${paramIndex})
-            OR LOWER("User".last_name) LIKE LOWER($${paramIndex})
-            OR LOWER("User".email) LIKE LOWER($${paramIndex})
-            OR LOWER("User".contact_no) LIKE LOWER($${paramIndex})
-            OR LOWER("User".user_name) LIKE LOWER($${paramIndex})
-            OR LOWER("User".code) LIKE LOWER($${paramIndex})
-            OR LOWER("User".created_by::text) LIKE LOWER($${paramIndex})
-            OR LOWER("User".updated_by::text) LIKE LOWER($${paramIndex})
-            OR LOWER("User".first_name || ' ' || "User".last_name) LIKE LOWER($${paramIndex})
-            OR LOWER("Designation".designation) LIKE LOWER($${paramIndex})
-          )
-        `);
-        values.push(`%${term}%`);
-        paramIndex++;
-      }
-    });
+    if (searchTerms) {
+      searchTerms.forEach((term) => {
+        if (term.toLowerCase() === 'true' || term.toLowerCase() === 'false') {
+          const boolValue = term.toLowerCase() === 'true';
+          conditions.push(`"User".is_enabled = $${paramIndex}`);
+          values.push(boolValue);
+          paramIndex++;
+        } else {
+          conditions.push(`
+            (
+              LOWER("User".id::text) LIKE LOWER($${paramIndex})
+              OR LOWER("User".role_id::text) LIKE LOWER($${paramIndex})
+              OR LOWER("User".designation_id::text) LIKE LOWER($${paramIndex})
+              OR LOWER("User".first_name) LIKE LOWER($${paramIndex})
+              OR LOWER("User".last_name) LIKE LOWER($${paramIndex})
+              OR LOWER("User".email) LIKE LOWER($${paramIndex})
+              OR LOWER("User".contact_no) LIKE LOWER($${paramIndex})
+              OR LOWER("User".user_name) LIKE LOWER($${paramIndex})
+              OR LOWER("User".code) LIKE LOWER($${paramIndex})
+              OR LOWER("User".created_by::text) LIKE LOWER($${paramIndex})
+              OR LOWER("User".updated_by::text) LIKE LOWER($${paramIndex})
+              OR LOWER("User".first_name || ' ' || "User".last_name) LIKE LOWER($${paramIndex})
+              OR LOWER("Designation".designation) LIKE LOWER($${paramIndex})
+            )
+          `);
+          values.push(`%${term}%`);
+          paramIndex++;
+        }
+      });
+    }
 
     if (conditions.length > 0) {
       queryText += ' AND (' + conditions.join(' OR ') + ')';
     }
 
     const countQuery = `SELECT COUNT(*) as total FROM (${queryText}) as count_table`;
+    const countResult = await executeQuery(countQuery, values);
 
     queryText += `
-      ORDER BY "User"."created_at" DESC
+      ORDER BY "User"."updated_at" DESC
       LIMIT $${paramIndex}
       OFFSET $${paramIndex + 1}
     `;
-    values.push(limitNum, offset);
+    values.push(validatedPageSize, offset);
 
-    const countResult = await executeQuery(countQuery, values.slice(0, -2));
-    const searchResult = await executeQuery(queryText, values);
-
+    let searchResult = await executeQuery(queryText, values);
     const totalItems = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(totalItems / limitNum);
+    let totalPages = Math.ceil(totalItems / validatedPageSize);
+    if (totalItems > 0 && searchResult.rows.length === 0 && offset > 0) {
+      values[values.length - 1] = 0; 
+      searchResult = await executeQuery(queryText, values);
+      totalPages = Math.ceil(totalItems / validatedPageSize);
+    }
 
     const data = {
       totalCount: totalItems,

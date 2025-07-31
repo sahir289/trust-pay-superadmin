@@ -50,19 +50,20 @@ const router = express.Router();
  *                         example: "john_doe"
  */
 router.get(
-  '/search',
+  '/',
   [isAuthenticated, authorized(AccessRoles.SETTLEMENT)],
   tryCatchHandler(getSettlementsBySearch),
+);
+
+router.get(
+  '/settlementReports',
+  [isAuthenticated, authorized(AccessRoles.SETTLEMENT)],
+  tryCatchHandler(getSettlementController),
 );
 router.get(
   '/:id',
   [isAuthenticated, authorized(AccessRoles.SETTLEMENT)],
   tryCatchHandler(getSettlementControllerById),
-);
-router.get(
-  '/',
-  [isAuthenticated, authorized(AccessRoles.SETTLEMENT)],
-  tryCatchHandler(getSettlementController),
 );
 /**
  * @swagger

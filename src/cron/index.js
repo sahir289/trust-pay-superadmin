@@ -4,6 +4,7 @@ import collectCalculationData from './calculationCron.js';
 import collectPayinData from './notifyCron.js';
 import { logger } from '../utils/logger.js';
 import formattedSuccessRatiosByMerchant from './successRatioCron.js';
+import gatherAllDataForAllCompanies from './gatherAllData.js';
 // import  checkPendingStatus  from './pendingPayinCron.js';
 const router = express.Router();
 
@@ -115,5 +116,6 @@ router.get(
   },
   collectPayinData,
 );
+router.get('/initialize-cronjob', gatherAllDataForAllCompanies);
 
 export default router;

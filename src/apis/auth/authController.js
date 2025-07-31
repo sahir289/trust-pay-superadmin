@@ -15,6 +15,7 @@ import {
   verfyOtpService,
   forgetPasswordService,
   logoutService,
+  getUserRoleService,
 } from './authService.js';
 
 const loginController = async (req, res) => {
@@ -111,6 +112,7 @@ const verfyUserController = async (req, res) => {
   }
   return sendSuccess(res, {}, 'Verified User Successfully');
 };
+
 const verfyOtpController = async (req, res) => {
   const { otp } = req.body;
   const verfyUser = await verfyOtpService(otp);
@@ -119,6 +121,7 @@ const verfyOtpController = async (req, res) => {
   }
   return sendSuccess(res, verfyUser, 'Verified Otp Successfully');
 };
+
 const forgetPasswordController = async (req, res) => {
   const { password, user_id } = req.body;
   const verfyUser = await forgetPasswordService({ password, user_id });
@@ -126,6 +129,12 @@ const forgetPasswordController = async (req, res) => {
     throw new BadRequestError("Invalid User's Info");
   }
   return sendSuccess(res, {}, 'Password Reset Successfully');
+};
+
+const getUserRoleController = async (req, res) => {
+  const { userName } = req.query;
+  const role = await getUserRoleService(userName);
+  return sendSuccess(res, role, 'User role fetched successfully');
 };
 
 export {
@@ -137,4 +146,5 @@ export {
   verfyUserController,
   verfyOtpController,
   forgetPasswordController,
+  getUserRoleController,
 };

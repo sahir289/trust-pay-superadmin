@@ -207,11 +207,15 @@ const getResetHistoryBySearchDao = async (
     values.push(limitNum, offset);
 
     const countResult = await executeQuery(countQuery, values.slice(0, -2));
-    const searchResult = await executeQuery(queryText, values);
+    let searchResult = await executeQuery(queryText, values);
 
     const totalItems = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(totalItems / limitNum);
-
+    let totalPages = Math.ceil(totalItems / limitNum);
+    if (totalItems > 0 && searchResult.rows.length === 0 && offset > 0) {
+      values[values.length - 1] = 0; 
+      searchResult = await executeQuery(queryText, values);
+      totalPages = Math.ceil(totalItems / limitNum);
+    }
     return {
       totalCount: totalItems,
       totalPages,

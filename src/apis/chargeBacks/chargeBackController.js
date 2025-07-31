@@ -17,7 +17,7 @@ import { ValidationError } from '../../utils/appErrors.js';
 import { getPayinDetailsByMerchantOrderId } from '../payIn/payInDao.js';
 import { NotFoundError } from '../../utils/appErrors.js';
 import { getChargeBackDao } from './chargeBackDao.js';
-import { BadRequestError } from '../../utils/appErrors.js';
+// import { BadRequestError } from '../../utils/appErrors.js';
 import { getBankResponseDaoById } from '../bankResponse/bankResponseDao.js';
 
 import { Status } from '../../constants/index.js';
@@ -123,24 +123,23 @@ const getChargeBacksById = async (req, res) => {
 };
 const getChargeBacksBySearch = async (req, res) => {
   const { company_id, role, user_id, designation } = req.user;
-  const { search, page = 1, limit = 10 } = req.query;
-  if (!search) {
-    throw new BadRequestError('search is required');
-  }
+  const { page, limit, sortOrder, ...rest } = req.query;
   const data = await getChargeBacksBySearchService(
     {
-      company_id,
-      search,
-      page,
-      limit,
-      ...req.query,
+      company_id: company_id,
+      ...rest,
+      // TODO: search
     },
     role,
-    designation,
+    page,
+    limit,
     user_id,
+    sortOrder,
+    designation,
   );
-
-  return sendSuccess(res, data, 'chargbacks fetched successfully');
+  // Log success message
+  // Send success response
+  return sendSuccess(res, data, 'ChargeBacks fetched successfully');
 };
 const getChargeBacks = async (req, res) => {
   const { company_id, role, user_id, designation } = req.user;

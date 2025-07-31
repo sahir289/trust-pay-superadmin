@@ -26,9 +26,9 @@ const getCheckUtr = async (req, res) => {
 const getCheckUtrBySearch = async (req, res) => {
   const { company_id } = req.user;
   const { search, page = 1, limit = 10 } = req.query;
-  if (!search) {
-    throw new BadRequestError('search is required');
-  }
+  // if (!search) {
+  //   throw new BadRequestError('search is required');
+  // }
   const data = await getCheckUtrBySearchService(
     company_id,
     search,

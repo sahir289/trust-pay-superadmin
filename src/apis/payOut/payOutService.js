@@ -133,6 +133,7 @@ const walletsPayoutsService = async (conn, payload, updatedBy, res) => {
           const handlePayoutUpdate = async (
             responseData,
             isApproved = false,
+            isTransactionUnderProcess = false,
           ) => {
             const bankId = company.config.PAY_ASSIST.defaultBankId;
             const [bankVendor] = await getBankByIdDao({ id: bankId });
@@ -155,8 +156,9 @@ const walletsPayoutsService = async (conn, payload, updatedBy, res) => {
             if (isApproved) {
               Object.assign(updatePayload, {
                 status: Status.APPROVED,
-                utr_id:
-                  responseData.Response.refno || responseData.Response?.utr,
+                utr_id: isTransactionUnderProcess
+                  ? responseData.Response.txnid
+                  : responseData.Response.refno || responseData.Response?.utr,
                 approved_at: new Date().toISOString(),
               });
             } else {
@@ -197,6 +199,8 @@ const walletsPayoutsService = async (conn, payload, updatedBy, res) => {
               }
             } else if (statusResponse.data.ErrorCode !== 'TUP') {
               await handlePayoutUpdate(statusResponse.data, false);
+            } else if (statusResponse.data.ErrorCode === 'TUP') {
+              await handlePayoutUpdate(statusResponse.data, true, true);
             }
           }
 
@@ -505,6 +509,7 @@ const getPayoutsBySearchService = async (
   role,
   user_id,
   designation,
+  isAmount,
 ) => {
   try {
     const fetchMerchantIds = async (user_ids) => {
@@ -565,22 +570,26 @@ const getPayoutsBySearchService = async (
     if (isNaN(pageNum) || isNaN(limitNum) || pageNum < 1 || limitNum < 1) {
       throw new BadRequestError('Invalid pagination parameters');
     }
-    const searchTerms = filters.search
-      .split(',')
-      .map((term) => term.trim())
-      .filter((term) => term.length > 0);
-
-    if (searchTerms.length === 0) {
-      throw new BadRequestError('Please provide valid search terms');
+    let searchTerms = [];
+    if (filters.search || filters.search === '') {
+      searchTerms = filters.search
+        .split(',')
+        .map((term) => term.trim())
+        .filter((term) => term.length > 0);
     }
-    const offset = (pageNum - 1) * limitNum;
 
+    // if (searchTerms.length === 0) {
+    //   throw new BadRequestError('Please provide valid search terms');
+    // }
+
+    const offset = (pageNum - 1) * limitNum;
     const data = await getPayoutsBySearchDao(
       filters,
       searchTerms,
       limitNum,
       offset,
       role,
+      isAmount,
       // filterColumns,
     );
 
@@ -669,9 +678,7 @@ const updatePayoutService = async (conn, ids, payload, role) => {
     const bankID = payload.bank_acc_id || singleWithdrawData.bank_acc_id;
     const [merchantArr, bankDataArr] = await Promise.all([
       getMerchantsDao({ id: singleWithdrawData.merchant_id }),
-      bankID
-        ? getBankByIdDao({ id: bankID })
-        : Promise.resolve([]),
+      bankID ? getBankByIdDao({ id: bankID }) : Promise.resolve([]),
     ]);
 
     const merchant = merchantArr[0];
@@ -693,8 +700,9 @@ const updatePayoutService = async (conn, ids, payload, role) => {
     if (stringifyJSON(payload) === stringifyJSON(checkPayload)) {
       return data;
     }
-    
-    const notifyUrl = data.config?.urls?.notify || merchant.config?.urls?.payout_notify;
+
+    const notifyUrl =
+      data.config?.urls?.notify || merchant.config?.urls?.payout_notify;
 
     // Early return if not approved
     if (!data.approved_at) {

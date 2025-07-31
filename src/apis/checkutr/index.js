@@ -3,7 +3,7 @@ import tryCatchHandler from '../../utils/tryCatchHandler.js';
 import {
   createCheckUtr,
   deleteCheckUtr,
-  getCheckUtr,
+  // getCheckUtr,
   getCheckUtrBySearch,
   updateCheckUtr,
 } from './checkUtrController.js';
@@ -40,14 +40,14 @@ const router = express.Router();
  *                 data:
  *                   type: object
  */
-router.get(
-  '/',
-  [isAuthenticated, authorized(AccessRoles.CHECK_UTR_HISTORY)],
-  tryCatchHandler(getCheckUtr),
-);
+// router.get(
+//   '/',
+//   [isAuthenticated, authorized(AccessRoles.CHECK_UTR_HISTORY)],
+//   tryCatchHandler(getCheckUtr),
+// );
 
 router.get(
-  '/search/',
+  '/',
   [isAuthenticated, authorized(AccessRoles.CHECK_UTR_HISTORY)],
   tryCatchHandler(getCheckUtrBySearch),
 );

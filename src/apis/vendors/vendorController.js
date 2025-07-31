@@ -14,7 +14,7 @@ import {
 } from '../../schemas/vendorSchema.js';
 import { ValidationError } from '../../utils/appErrors.js';
 import { transactionWrapper } from '../../utils/db.js';
-import { BadRequestError } from '../../utils/appErrors.js';
+// import { BadRequestError } from '../../utils/appErrors.js';
 
 const createVendor = async (req, res) => {
   const { error } = VALIDATE_VENDOR_SCHEMA.validate(req.body);
@@ -52,22 +52,18 @@ const getVendors = async (req, res) => {
 };
 
 const getVendorsBySearch = async (req, res) => {
-  const { company_id, role, designation, user_id } = req.user;
-  const { search, page = 1, limit = 10 } = req.query;
-  if (!search) {
-    throw new BadRequestError('search is required');
-  }
+  const { company_id, role, user_id, designation  } = req.user;
+  const { page, limit } = req.query;
   const data = await getVendorsBySearchService(
     {
       company_id,
-      search,
-      page,
-      limit,
       ...req.query,
     },
     role,
-    designation,
+    page,
+    limit,
     user_id,
+    designation,
   );
   return sendSuccess(res, data, 'Vendors fetched successfully');
 };
@@ -113,9 +109,10 @@ const updateVendor = async (req, res) => {
     throw new ValidationError(bodyError);
   }
   const payload = req.body;
-  const { company_id } = req.user;
+  const { company_id ,user_id } = req.user;
   const { id } = req.params; // Assuming the Vendor ID is passed as a parameter
   // Call the service to update the Vendor
+  payload.updated_by = user_id;
   const ids = { id, company_id };
   const vendor = await updateVendorService(ids, payload, role);
   // Log success message

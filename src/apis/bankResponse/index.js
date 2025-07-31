@@ -96,13 +96,13 @@ router.post(
 router.get(
   '/',
   [isAuthenticated, authorized(AccessRoles.BANK_RESPONSE)],
-  tryCatchHandler(getBankResponse),
+  tryCatchHandler(getBankResponseBySearch),
 );
 
 router.get(
-  '/search',
+  '/BankResponseReports',
   [isAuthenticated, authorized(AccessRoles.BANK_RESPONSE)],
-  tryCatchHandler(getBankResponseBySearch),
+  tryCatchHandler(getBankResponse),
 );
 /**
  * @swagger

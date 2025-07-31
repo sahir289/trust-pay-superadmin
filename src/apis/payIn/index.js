@@ -7,7 +7,7 @@ import {
   checkPayInStatus,
   disputeDuplicateTransaction,
   generatePayInUrl,
-  getPayins,
+  // getPayins,
   payInIntentGenerateOrder,
   processPayIn,
   processPayInByImage,
@@ -384,7 +384,7 @@ router.put(
  *       500:
  *         description: Internal server error
  */
-router.get('/', tryCatchHandler(getPayins));
+// router.get('/', tryCatchHandler(getPayins));
 
 router.post('/processIMGUTR/:merchantOrderId', tryCatchHandler(processPayInIMGUTR));
 
@@ -395,7 +395,7 @@ router.get(
   tryCatchHandler(checkPendingPayinStatus),
 );
 
-router.get('/search', tryCatchHandler(getPayinsBySearch));
+router.get('/', tryCatchHandler(getPayinsBySearch));
 
 router.put('/updatePayin/:merchant_order_id', tryCatchHandler(updatePayIn));
 

@@ -243,6 +243,50 @@ export const getMerchantsDao = async (
   }
 };
 
+export const getMerchantsByCodeDao = async (code) => {
+  try {
+    let baseQuery = `
+    SELECT 
+      "Merchant".id, 
+      "Merchant".user_id, 
+      "Merchant".first_name, 
+      "Merchant".last_name, 
+      "Merchant".code, 
+      "Merchant".min_payin, 
+      "Merchant".max_payin, 
+      "Merchant".payin_commission, 
+      "Merchant".payout_commission, 
+      "Merchant".min_payout, 
+      "Merchant".max_payout, 
+      "Merchant".config, 
+      "Merchant".company_id, 
+      creator.user_name AS created_by, 
+      updater.user_name AS updated_by, 
+      "Merchant".created_at, 
+      "Merchant".updated_at, 
+      "User".designation_id, 
+      "User".first_name || ' ' || "User".last_name AS full_name, 
+      "Designation".designation AS designation_name
+    FROM "Merchant" 
+    JOIN "User" ON "Merchant".user_id = "User".id 
+    LEFT JOIN "Designation" ON "User".designation_id = "Designation".id
+    LEFT JOIN "User" creator ON "Merchant".created_by = creator.id 
+    LEFT JOIN "User" updater ON "Merchant".updated_by = updater.id
+  `;
+
+    let queryParams = [];
+    if (code) {
+      baseQuery += ` WHERE "Merchant".code = $1`;
+      queryParams = [code.trim()];
+    }
+    const result = await executeQuery(baseQuery, queryParams);
+    return result.rows;
+  } catch (error) {
+    logger.error('Error in getMerchants By Code Dao:', error);
+    throw error;
+  }
+};
+
 export const getAllMerchantsDao = async (
   filters,
   page = 1,
@@ -319,50 +363,6 @@ export const getAllMerchantsDao = async (
   }
 };
 
-export const getMerchantsByCodeDao = async (code) => {
-  try {
-    let baseQuery = `
-    SELECT 
-      "Merchant".id, 
-      "Merchant".user_id, 
-      "Merchant".first_name, 
-      "Merchant".last_name, 
-      "Merchant".code, 
-      "Merchant".min_payin, 
-      "Merchant".max_payin, 
-      "Merchant".payin_commission, 
-      "Merchant".payout_commission, 
-      "Merchant".min_payout, 
-      "Merchant".max_payout, 
-      "Merchant".config, 
-      "Merchant".company_id, 
-      creator.user_name AS created_by, 
-      updater.user_name AS updated_by, 
-      "Merchant".created_at, 
-      "Merchant".updated_at, 
-      "User".designation_id, 
-      "User".first_name || ' ' || "User".last_name AS full_name, 
-      "Designation".designation AS designation_name
-    FROM "Merchant" 
-    JOIN "User" ON "Merchant".user_id = "User".id 
-    LEFT JOIN "Designation" ON "User".designation_id = "Designation".id
-    LEFT JOIN "User" creator ON "Merchant".created_by = creator.id 
-    LEFT JOIN "User" updater ON "Merchant".updated_by = updater.id
-  `;
-
-    let queryParams = [];
-    if (code) {
-      baseQuery += ` WHERE "Merchant".code = $1`;
-      queryParams = [code.trim()];
-    }
-    const result = await executeQuery(baseQuery, queryParams);
-    return result.rows;
-  } catch (error) {
-    logger.error('Error in getMerchants By Code Dao:', error);
-    throw error;
-  }
-};
-
 export const getMerchantByCodeDao = async (code) => {
   try {
     let baseQuery = `
@@ -392,15 +392,29 @@ export const getMerchantByCodeDao = async (code) => {
 
 export const getMerchantsBySearchDao = async (
   filters,
-  searchTerms,
-  limitNum,
-  offset,
+  page = 1,
+  pageSize = 10,
+  sortBy = 'updated_at',
+  sortOrder = 'ASC',
   role,
+  searchTerms = [],
 ) => {
   try {
     const conditions = [];
     const values = [filters.company_id];
     let paramIndex = 2;
+
+    // Use filters.limit and filters.page, with fallbacks to pageSize and page
+    const limitNum =
+      parseInt(filters.limit, 10) || parseInt(pageSize, 10) || 10;
+    const pageNum = parseInt(filters.page, 10) || parseInt(page, 10) || 1;
+    let offset = (pageNum - 1) * limitNum;
+
+    // Validate and sanitize sortBy and sortOrder
+    const sortField = sortBy || 'updated_at';
+    const orderDirection = ['ASC', 'DESC'].includes(sortOrder?.toUpperCase())
+      ? sortOrder.toUpperCase()
+      : 'DESC';
 
     let queryText = `
       SELECT 
@@ -431,7 +445,7 @@ export const getMerchantsBySearchDao = async (
         (SELECT net_balance 
          FROM "Calculation" 
          WHERE "Calculation".user_id = "Merchant".user_id 
-         ORDER BY "Calculation".updated_at DESC 
+         ORDER BY "Calculation".created_at DESC 
          LIMIT 1) AS balance
       FROM "Merchant" 
       JOIN "User" ON "Merchant".user_id = "User".id 
@@ -442,17 +456,17 @@ export const getMerchantsBySearchDao = async (
       AND "Merchant"."company_id" = $1
     `;
 
-    // Apply designation filter for ADMIN role
-    if (role === Role.ADMIN || role === Role.SUPER_ADMIN) {
+    // Role-based designation filtering
+    if ((role === Role.ADMIN || role === Role.SUPER_ADMIN) && searchTerms.length > 0) {
       queryText += `
         AND (
           "User".designation_id = (SELECT id FROM "Designation" WHERE designation = 'MERCHANT')
           OR "User".designation_id = (SELECT id FROM "Designation" WHERE designation = 'SUB_MERCHANT')
         )
       `;
-    }
+    } 
 
-    // Filter by user_id if provided
+    // Filter by user_id
     if (filters.user_id) {
       if (Array.isArray(filters.user_id)) {
         const placeholders = filters.user_id
@@ -468,79 +482,89 @@ export const getMerchantsBySearchDao = async (
       }
     }
 
-    searchTerms.forEach((term) => {
-      if (term.toLowerCase() === 'true' || term.toLowerCase() === 'false') {
-        const boolValue = term.toLowerCase() === 'true';
-        conditions.push(`
-          (
-            "Merchant".is_test_mode = $${paramIndex}
-            OR "Merchant".is_enabled = $${paramIndex}
-            OR "Merchant".dispute_enabled = $${paramIndex}
-            OR "Merchant".is_demo = $${paramIndex}
-            OR ("Merchant".config->'allow_intent')::boolean = $${paramIndex}
-          )
-        `);
-        values.push(boolValue);
-        paramIndex++;
-      } else {
-        conditions.push(`
-          (
-            LOWER("Merchant".id::text) LIKE LOWER($${paramIndex})
-            OR LOWER("Merchant".user_id::text) LIKE LOWER($${paramIndex})
-            OR LOWER("Merchant".first_name) LIKE LOWER($${paramIndex})
-            OR LOWER("Merchant".last_name) LIKE LOWER($${paramIndex})
-            OR LOWER("Merchant".code) LIKE LOWER($${paramIndex})
-            OR "Merchant".min_payin::text LIKE $${paramIndex}
-            OR "Merchant".max_payin::text LIKE $${paramIndex}
-            OR "Merchant".payin_commission::text LIKE $${paramIndex}
-            OR "Merchant".min_payout::text LIKE $${paramIndex}
-            OR "Merchant".max_payout::text LIKE $${paramIndex}
-            OR "Merchant".payout_commission::text LIKE $${paramIndex}
-            OR LOWER(creator.user_name) LIKE LOWER($${paramIndex})
-            OR LOWER(updater.user_name) LIKE LOWER($${paramIndex})
-            OR LOWER("User".first_name || ' ' || "User".last_name) LIKE LOWER($${paramIndex})
-            OR LOWER("Designation".designation) LIKE LOWER($${paramIndex})
-            OR LOWER("Merchant".config->'keys'->>'public') LIKE LOWER($${paramIndex})
-            OR LOWER("Merchant".config->'keys'->>'private') LIKE LOWER($${paramIndex})
-            OR LOWER("Merchant".config->'urls'->>'site') LIKE LOWER($${paramIndex})
-            OR LOWER("Merchant".config->'urls'->>'return') LIKE LOWER($${paramIndex})
-            OR LOWER("Merchant".config->'urls'->>'payin_notify') LIKE LOWER($${paramIndex})
-            OR LOWER("Merchant".config->'urls'->>'payout_notify') LIKE LOWER($${paramIndex})
-            OR (
-              SELECT net_balance::text 
-              FROM "Calculation" 
-              WHERE "Calculation".user_id = "Merchant".user_id 
-              ORDER BY "Calculation".updated_at DESC 
-              LIMIT 1
-            ) LIKE $${paramIndex}
-          )
-        `);
-        values.push(`%${term}%`);
-        paramIndex++;
+    // Apply search terms
+    if (searchTerms.length > 0) {
+      for (const term of searchTerms) {
+        if (term.toLowerCase() === 'true' || term.toLowerCase() === 'false') {
+          const boolValue = term.toLowerCase() === 'true';
+          conditions.push(`
+            (
+              "Merchant".is_test_mode = $${paramIndex}
+              OR "Merchant".is_enabled = $${paramIndex}
+              OR "Merchant".dispute_enabled = $${paramIndex}
+              OR "Merchant".is_demo = $${paramIndex}
+              OR ("Merchant".config->'allow_intent')::boolean = $${paramIndex}
+            )
+          `);
+          values.push(boolValue);
+          paramIndex++;
+        } else {
+          conditions.push(`
+            (
+              LOWER("Merchant".id::text) LIKE LOWER($${paramIndex})
+              OR LOWER("Merchant".user_id::text) LIKE LOWER($${paramIndex})
+              OR LOWER("Merchant".first_name) LIKE LOWER($${paramIndex})
+              OR LOWER("Merchant".last_name) LIKE LOWER($${paramIndex})
+              OR LOWER("Merchant".code) LIKE LOWER($${paramIndex})
+              OR "Merchant".min_payin::text LIKE $${paramIndex}
+              OR "Merchant".max_payin::text LIKE $${paramIndex}
+              OR "Merchant".payin_commission::text LIKE $${paramIndex}
+              OR "Merchant".min_payout::text LIKE $${paramIndex}
+              OR "Merchant".max_payout::text LIKE $${paramIndex}
+              OR "Merchant".payout_commission::text LIKE $${paramIndex}
+              OR LOWER(creator.user_name) LIKE LOWER($${paramIndex})
+              OR LOWER(updater.user_name) LIKE LOWER($${paramIndex})
+              OR LOWER("User".first_name || ' ' || "User".last_name) LIKE LOWER($${paramIndex})
+              OR LOWER("Designation".designation) LIKE LOWER($${paramIndex})
+              OR LOWER("Merchant".config->'keys'->>'public') LIKE LOWER($${paramIndex})
+              OR LOWER("Merchant".config->'keys'->>'private') LIKE LOWER($${paramIndex})
+              OR LOWER("Merchant".config->'urls'->>'site') LIKE LOWER($${paramIndex})
+              OR LOWER("Merchant".config->'urls'->>'return') LIKE LOWER($${paramIndex})
+              OR LOWER("Merchant".config->'urls'->>'payin_notify') LIKE LOWER($${paramIndex})
+              OR LOWER("Merchant".config->'urls'->>'payout_notify') LIKE LOWER($${paramIndex})
+              OR (
+                SELECT net_balance::text 
+                FROM "Calculation" 
+                WHERE "Calculation".user_id = "Merchant".user_id 
+                ORDER BY "Calculation".updated_at DESC 
+                LIMIT 1
+              ) LIKE $${paramIndex}
+            )
+          `);
+          values.push(`%${term}%`);
+          paramIndex++;
+        }
       }
-    });
+    }
 
+    // Apply search conditions
     if (conditions.length > 0) {
       queryText += ' AND (' + conditions.join(' OR ') + ')';
     }
 
+    // Count query for pagination
     const countQuery = `SELECT COUNT(*) as total FROM (${queryText}) AS count_table`;
 
+    // Final sorting and pagination
     queryText += `
-      ORDER BY "Merchant"."created_at" DESC
+      ORDER BY "${sortField}" ${orderDirection}
       LIMIT $${paramIndex}
       OFFSET $${paramIndex + 1}
     `;
-
     values.push(limitNum, offset);
+
     const countResult = await executeQuery(countQuery, values.slice(0, -2));
-    const searchResult = await executeQuery(queryText, values);
+    let searchResult = await executeQuery(queryText, values);
 
-    // Calculate pagination metadata
-    const totalItems = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(totalItems / limitNum);
+    const totalItems = parseInt(countResult.rows[0].total, 10);
+    let totalPages = Math.ceil(totalItems / limitNum);
 
-    // Enhance with sub-merchants
+    if (totalItems > 0 && searchResult.rows.length === 0 && offset > 0) {
+      values[values.length - 1] = 0;
+      searchResult = await executeQuery(queryText, values);
+      totalPages = Math.ceil(totalItems / limitNum);
+    }
+
     const data = await enhanceMerchantsWithSubMerchants(searchResult.rows);
 
     return {
@@ -553,6 +577,8 @@ export const getMerchantsBySearchDao = async (
     throw error;
   }
 };
+
+
 
 export const updateMerchantDao = async (ids, data, conn) => {
   return await buildAndExecuteUpdateQuery(

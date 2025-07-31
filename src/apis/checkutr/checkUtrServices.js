@@ -33,14 +33,18 @@ const getCheckUtrBySearchService = async (company_id, search, page, limit) => {
     if (isNaN(pageNum) || isNaN(limitNum) || pageNum < 1 || limitNum < 1) {
       throw new BadRequestError('Invalid pagination parameters');
     }
-    const searchTerms = search
+
+    let searchTerms = [];
+    if (search || typeof search !== 'undefined') {
+     searchTerms = search
       .split(',')
       .map((term) => term.trim())
       .filter((term) => term.length > 0);
-
-    if (searchTerms.length === 0) {
-      throw new BadRequestError('Please provide valid search items');
     }
+
+    // if (searchTerms.length === 0) {
+    //   throw new BadRequestError('Please provide valid search items');
+    // }
     const offset = (pageNum - 1) * limitNum;
     return await getCheckUtrBySearchDao(
       company_id,

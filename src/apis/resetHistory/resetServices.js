@@ -54,17 +54,20 @@ const getResetHistoryBySearchService = async (filters) => {
       throw new BadRequestError('Invalid pagination parameters');
     }
 
+    let searchTerms = [];
     // Process search terms
-    const searchTerms = filters.search
+    if (filters.search && typeof filters.search === 'string') {
+     searchTerms = filters.search
       ? filters.search
           .split(',')
           .map((term) => term.trim())
           .filter((term) => term.length > 0)
       : [];
-
-    if (searchTerms.length === 0) {
-      throw new BadRequestError('Please provide valid search terms');
     }
+
+    // if (searchTerms.length === 0) {
+    //   throw new BadRequestError('Please provide valid search terms');
+    // }
 
     const offset = (pageNum - 1) * limitNum;
 

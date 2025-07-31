@@ -22,6 +22,7 @@ import {
   getBeneficiaryAccountBySearchDao,
   getBeneficiaryAccountDaoAll,
   deleteBeneficiaryDao,
+  checkBeneficiaryAccountExistsDao,
 } from './beneficiaryAccountDao.js';
 // import { notifyAdminsAndUsers } from '../../utils/notifyUsers.js';
 
@@ -67,9 +68,9 @@ const getBeneficiaryAccountService = async (
         }
       }
     } else if (role === Role.VENDOR) {
-      if (designation == Role.VENDOR) {
+      if (designation === Role.VENDOR) {
         filters.user_id = [user_id];
-      } else if (designation == Role.VENDOR_OPERATIONS) {
+      } else if (designation === Role.VENDOR_OPERATIONS) {
         const userHierarchys = await getUserHierarchysDao({ user_id });
         const parentID = userHierarchys[0]?.config?.parent;
         if (parentID) {
@@ -80,24 +81,31 @@ const getBeneficiaryAccountService = async (
         company_id,
         Role.ADMIN,
       );
-      filters.user_id = [...filters.user_id, adminUser.id];
+      if (adminUser && adminUser.id) {
+        filters.user_id = [...(filters.user_id || []), adminUser.id];
+      }
     } else if ((role === Role.ADMIN || role === Role.SUPER_ADMIN) && filters?.user_id) {
-      // filters.user_id = [user_id];
       const adminUser = await getUserByCompanyCreatedAtDao(
         company_id,
         Role.ADMIN,
       );
-      filters.user_id = [filters.user_id, adminUser.id];
+      if (adminUser && adminUser.id) {
+        filters.user_id = [filters.user_id, adminUser.id];
+      }
     }
 
     let role_id;
     if (filters?.beneficiary_role) {
       role_id = await getRoleDao({ role: filters.beneficiary_role });
-      filters.role_id = role_id[0]?.id;
-      if (filters.beneficiary_role === Role.VENDOR) {
-        const [adminRole] = await getRoleDao({ role: Role.ADMIN });
-        filters.role_id = [filters.role_id, adminRole?.id];
-      }
+      if (role_id[0]?.id) {
+        filters.role_id = role_id[0].id;
+        if (filters.beneficiary_role === Role.VENDOR) {
+          const [adminRole] = await getRoleDao({ role: Role.ADMIN });
+          if (adminRole?.id) {
+            filters.role_id = [filters.role_id, adminRole.id];
+          } 
+        }
+      } 
       delete filters.beneficiary_role;
     }
 
@@ -105,22 +113,22 @@ const getBeneficiaryAccountService = async (
     const pageSize = parseInt(limit, 10) || 10;
     filters.company_id = company_id;
 
-    return await getBeneficiaryAccountDaoAll(
+    const result = await getBeneficiaryAccountDaoAll(
       { ...filters },
       pageNumber,
       pageSize,
       role,
     );
+    return result;
   } catch (error) {
-    logger.error('error getting while  getting banks', error);
+    logger.error('error getting while getting beneficiary banks', error);
     throw error;
   }
 };
 
 const getBeneficiaryAccountBySearchService = async (
-  role,
-  search,
   filters,
+  role,
   page,
   limit,
   user_id,
@@ -159,66 +167,68 @@ const getBeneficiaryAccountBySearchService = async (
         }
       }
     } else if (role === Role.VENDOR) {
-      if (designation == Role.VENDOR) {
+      if (designation === Role.VENDOR) {
         filters.user_id = [user_id];
-        const adminUser = await getUserByCompanyCreatedAtDao(
-          company_id,
-          Role.ADMIN,
-        );
-        filters.user_id = [...filters.user_id, adminUser.id];
-      } else if (designation == Role.VENDOR_OPERATIONS) {
+      } else if (designation === Role.VENDOR_OPERATIONS) {
         const userHierarchys = await getUserHierarchysDao({ user_id });
         const parentID = userHierarchys[0]?.config?.parent;
         if (parentID) {
           filters.user_id = [parentID];
         }
-        const adminUser = await getUserByCompanyCreatedAtDao(
-          company_id,
-          Role.ADMIN,
-        );
-        filters.user_id = [...filters.user_id, adminUser.id];
       }
       const adminUser = await getUserByCompanyCreatedAtDao(
         company_id,
         Role.ADMIN,
       );
-      filters.user_id = [...filters.user_id, adminUser.id];
+      if (adminUser && adminUser.id) {
+        filters.user_id = [...(filters.user_id || []), adminUser.id];
+      }
+    } else if (role === Role.ADMIN && filters?.user_id) {
+      const adminUser = await getUserByCompanyCreatedAtDao(
+        company_id,
+        Role.ADMIN,
+      );
+      if (adminUser && adminUser.id) {
+        filters.user_id = [filters.user_id, adminUser.id];
+      }
     }
 
     let role_id;
     if (filters?.beneficiary_role) {
       role_id = await getRoleDao({ role: filters.beneficiary_role });
-      filters.role_id = role_id[0]?.id;
-      if (filters.beneficiary_role === Role.VENDOR) {
-        const [adminRole] = await getRoleDao({ role: Role.ADMIN });
-        filters.role_id = [filters.role_id, adminRole?.id];
+      if (role_id[0]?.id) {
+        filters.role_id = role_id[0].id;
+        if (filters.beneficiary_role === Role.VENDOR) {
+          const [adminRole] = await getRoleDao({ role: Role.ADMIN });
+          if (adminRole?.id) {
+            filters.role_id = [filters.role_id, adminRole.id];
+          }
+        }
       }
       delete filters.beneficiary_role;
     }
-
-    const pageNum = parseInt(page);
-    const limitNum = parseInt(limit);
-    if (isNaN(pageNum) || isNaN(limitNum) || pageNum < 1 || limitNum < 1) {
-      throw new BadRequestError('Invalid pagination parameters');
+    let searchTerms = [];
+    if (filters.search) {
+      searchTerms = filters.search
+        .split(',')
+        .map((term) => term.trim())
+        .filter((term) => term.length > 0);
+      if (searchTerms.length === 0) {
+        throw new BadRequestError('Please provide valid search items');
+      }
     }
+    delete filters.search;
+    const pageNumber = parseInt(page, 10) || 1;
+    const pageSize = parseInt(limit, 10) || 10;
+    filters.company_id = company_id;
 
-    const searchTerms = search
-      .split(',')
-      .map((term) => term.trim())
-      .filter((term) => term.length > 0);
-    if (searchTerms.length === 0) {
-      throw new BadRequestError('Please provide valid search items');
-    }
-
-    const result = await getBeneficiaryAccountBySearchDao(
+    return await getBeneficiaryAccountBySearchDao(
+      { ...filters },
+      pageNumber,
+      pageSize,
       role,
       searchTerms,
-      pageNum,
-      limitNum,
-      filters,
     );
-
-    return result;
   } catch (error) {
     logger.error('Error in get BeneficiaryAccountBySearchService:', error);
     throw error;
@@ -362,6 +372,15 @@ const createBeneficiaryAccountService = async (conn, payload, company_id) => {
 
 const updateBeneficiaryAccountService = async (conn, ids, payload) => {
   try {
+    if (payload.acc_no) {
+      let filters = {}
+      filters.acc_no = payload.acc_no;
+      filters.company_id = ids.company_id;
+      const exists = await checkBeneficiaryAccountExistsDao(filters);
+      if (exists) {
+        throw new BadRequestError('Beneficiary account no. already exists');
+      }
+    }
     const [banks] = await getBeneficiaryAccountDao({
       id: ids.id,
       company_id: ids.company_id,
@@ -390,9 +409,8 @@ const updateBeneficiaryAccountService = async (conn, ids, payload) => {
     //   category: 'Beneficiary Account',
     // });
   } catch (error) {
-    logger.error('error getting while updating banks', error);
-    throw new BadRequestError('Error getting while updating banks');
-  }
+    logger.error('error getting while updating banks', error.message);
+    throw error;  }
 };
 
 const deleteBeneficiaryAccountService = async (conn, ids) => {

@@ -1,3 +1,4 @@
+
 import {
   executeQuery,
   buildSelectQuery,
@@ -712,9 +713,28 @@ export const updateCalculationBalanceDao = async (filters, data, conn) => {
   }
 };
 
+// Checks if any calculation entry exists for a given date (YYYY-MM-DD)
+const checkCalculationEntryForDateDao = async (date) => {
+  try {
+    // Compare only the date part, ignoring time and timezone
+    const sql = `
+      SELECT 1 FROM public."Calculation"
+      WHERE is_obsolete = false
+      AND to_char(created_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') = $1
+      LIMIT 1
+    `;
+    const result = await executeQuery(sql, [date]);
+    return result.rows.length > 0;
+  } catch (error) {
+    logger.error('Error checking calculation entry for date', error);
+    throw error;
+  }
+};
+
 export {
   getCalculationDao,
   createCalculationDao,
   updateCalculationDao,
   deleteCalculationDao,
+  checkCalculationEntryForDateDao,
 };

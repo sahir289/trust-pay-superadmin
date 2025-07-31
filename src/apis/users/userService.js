@@ -129,29 +129,24 @@ const getUsersService = async (
   }
 };
 
-const getUsersBySearchService = async (filters, role, designation, user_id) => {
+const getUsersBySearchService = async (
+  ids,
+  role,
+  page,
+  limit,
+  designation,
+  user_id,
+) => {
   try {
-    const pageNum = parseInt(filters.page) || 1;
-    const limitNum = parseInt(filters.limit) || 10;
-    if (isNaN(pageNum) || isNaN(limitNum) || pageNum < 1 || limitNum < 1) {
-      throw new BadRequestError('Invalid pagination parameters');
-    }
-    const searchTerms = filters.search
-      .split(',')
-      .map((term) => term.trim())
-      .filter((term) => term.length > 0);
-
-    if (searchTerms.length === 0) {
-      throw new BadRequestError('Please provide valid search terms');
-    }
-    const offset = (pageNum - 1) * limitNum;
-
     const filterColumns =
       role === Role.MERCHANT
         ? merchantColumns.USER
         : role === Role.VENDOR
           ? vendorColumns.USER
           : columns.USER;
+
+    const pageNumber = parseInt(page, 10) || 1;
+    const pageSize = parseInt(limit, 10) || 10;
 
     let userIdFilter = [];
 
@@ -212,13 +207,22 @@ const getUsersBySearchService = async (filters, role, designation, user_id) => {
       }
 
       userIdFilter = [...new Set(userIdFilter)];
-      filters.id = userIdFilter.length === 1 ? userIdFilter[0] : userIdFilter;
+      ids.id = userIdFilter.length === 1 ? userIdFilter[0] : userIdFilter;
     }
+    let searchTerms;
+    if (ids.search) {
+      searchTerms = ids.search
+      .split(',')
+      .map((term) => term.trim())
+      .filter((term) => term.length > 0);
+    }
+    
+    
     const data = await getUsersBySearchDao(
-      filters,
+      ids,
       searchTerms,
-      limitNum,
-      offset,
+      pageNumber,
+      pageSize,
       filterColumns,
     );
 

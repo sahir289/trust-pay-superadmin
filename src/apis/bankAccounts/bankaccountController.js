@@ -9,7 +9,7 @@ import {
   UPDATE_BANK_ACCOUNT_SCHEMA,
   VALIDATE_BANK_RESPONSE_BY_ID,
 } from '../../schemas/bankAccoountSchema.js';
-import { BadRequestError, ValidationError } from '../../utils/appErrors.js';
+import { ValidationError } from '../../utils/appErrors.js';
 import { transactionWrapper } from '../../utils/db.js';
 import { sendError, sendSuccess } from '../../utils/responseHandlers.js';
 import { getBankaccountDao, getMerchantBankDao } from './bankaccountDao.js';
@@ -42,22 +42,23 @@ const getBankaccount = async (req, res) => {
 };
 
 const getBankAccountBySearch = async (req, res) => {
-  const { company_id, role, designation, user_id } = req.user;
-  const { search, bank_used_for, page = 1, limit = 10 } = req.query;
-  if (!search) {
-    throw new BadRequestError('search is required');
-  }
+  const { company_id } = req.user;
+  const { role, user_id, designation } = req.user;
+  const { page, limit, bank_used_for, search } = req.query;
+  const filters = {
+    bank_used_for,
+  };
   const data = await getBankAccountBySearchService(
+    filters,
     company_id,
     role,
-    search,
-    bank_used_for,
     page,
     limit,
-    designation,
     user_id,
+    designation,
+    search,
   );
-  return sendSuccess(res, data, 'get Banks by search successfully');
+  return sendSuccess(res, data, 'get Banks successfully');
 };
 
 const getBankaccountNickName = async (req, res) => {

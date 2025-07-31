@@ -6,7 +6,7 @@ import { AccessRoles } from '../../constants/index.js';
 import {
   createResetHistory,
   deleteResetHistory,
-  getResetHistory,
+  // getResetHistory,
   updateResetHistory,
   getResetHistoryBySearch,
 } from './resetController.js';
@@ -41,13 +41,13 @@ const router = express.Router();
  *                 data:
  *                   type: object
  */
+// router.get(
+//   '/',
+//   [isAuthenticated, authorized(AccessRoles.RESET_DATA_HISTORY)],
+//   tryCatchHandler(getResetHistory),
+// );
 router.get(
   '/',
-  [isAuthenticated, authorized(AccessRoles.RESET_DATA_HISTORY)],
-  tryCatchHandler(getResetHistory),
-);
-router.get(
-  '/search',
   [isAuthenticated, authorized(AccessRoles.RESET_DATA_HISTORY)],
   tryCatchHandler(getResetHistoryBySearch),
 );

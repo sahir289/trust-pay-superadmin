@@ -59,12 +59,12 @@ const router = express.Router();
 router.get(
   '/',
   [isAuthenticated, authorized(AccessRoles.CHARGE_BACK.GET)],
-  tryCatchHandler(getChargeBacks),
+  tryCatchHandler(getChargeBacksBySearch),
 );
 router.get(
-  '/search',
+  '/reports',
   [isAuthenticated, authorized(AccessRoles.CHARGE_BACK.GET)],
-  tryCatchHandler(getChargeBacksBySearch),
+  tryCatchHandler(getChargeBacks),
 );
 /**
  * @swagger

@@ -9,6 +9,7 @@ import {
   verfyUserController,
   verfyOtpController,
   forgetPasswordController,
+  getUserRoleController,
 } from './authController.js';
 import { isAuthenticated } from '../../middlewares/auth.js';
 
@@ -37,6 +38,8 @@ const router = express.Router();
 router.post('/login', tryCatchHandler(loginController)); // login route
 
 router.post('/refresh-token', tryCatchHandler(refreshTokenController));
+
+router.get('/get-user-role', tryCatchHandler(getUserRoleController));
 
 /**
  * @swagger

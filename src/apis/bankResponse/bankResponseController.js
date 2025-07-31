@@ -62,20 +62,25 @@ const getClaimResponse = async (req, res) => {
 };
 
 const getBankResponseBySearch = async (req, res) => {
-  const { company_id, role } = req.user;
-  const { search, page = 1, limit = 10 } = req.query;
-  if (!search) {
-    throw new BadRequestError('search is required');
-  }
+  const { role, company_id } = req.user;
+  const { page, limit, search, updated, sortOrder, sortBy, ...rest } =
+    req.query;
+  delete req.query.sortOrder;
+  delete req.query.sortBy;
+  const payload = {
+    ...req.query,
+    company_id,
+    ...rest,
+  };
   const data = await getBankResponseBySearchService(
-    {
-      company_id,
-      search,
-      page,
-      limit,
-      ...req.query,
-    },
+    payload,
     role,
+    page,
+    limit,
+    search,
+    updated,
+    sortBy,
+    sortOrder,
   );
   return sendSuccess(res, data, 'BankResponse fetched successfully');
 };

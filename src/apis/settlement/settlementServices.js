@@ -155,93 +155,101 @@ const getSettlementService = async (
     throw error;
   }
 };
-
+// const searchTerms = filters.search
+//   .split(',')
+//   .map((term) => term.trim())
+//   .filter((term) => term.length > 0);
 const getSettlementsBySearchService = async (
+  ids,
   filters,
+  page,
+  limit,
+  sortBy,
+  sortOrder,
   role,
-  designation,
   user_id,
+  designation,
 ) => {
   try {
-    const pageNum = parseInt(filters.page);
-    const limitNum = parseInt(filters.limit);
-    if (isNaN(pageNum) || isNaN(limitNum) || pageNum < 1 || limitNum < 1) {
-      throw new BadRequestError('Invalid pagination parameters');
-    }
-    const searchTerms = filters.search
-      .split(',')
-      .map((term) => term.trim())
-      .filter((term) => term.length > 0);
-
-    delete filters.search;
-    if (searchTerms.length === 0) {
-      throw new BadRequestError('Please provide valid search terms');
-    }
-    const offset = (pageNum - 1) * limitNum;
-
-    const filterColumns =
-      role === Role.MERCHANT
-        ? merchantColumns.SETTLEMENT
-        : role === Role.VENDOR
-          ? vendorColumns.SETTLEMENT
-          : columns.SETTLEMENT;
-
-    if (role == Role.MERCHANT) {
-      filters.user_id = [user_id];
-    }
-    if (role == Role.VENDOR) {
-      filters.user_id = [user_id];
+    // Validate required parameters
+    if (!ids?.company_id) {
+      throw new BadRequestError('Company ID is required');
     }
 
-    if (role === Role.MERCHANT || designation === Role.MERCHANT_OPERATIONS) {
-      const userHierarchys = await getUserHierarchysDao({ user_id });
-      if (userHierarchys || userHierarchys.length > 0) {
-        const userHierarchy = userHierarchys[0];
-
-        if (
-          userHierarchy?.config ||
-          Array.isArray(userHierarchy?.config?.siblings?.sub_merchants)
-        ) {
-          filters.user_id = [
-            ...filters.user_id,
-            ...(userHierarchy?.config?.siblings?.sub_merchants ?? []),
-          ];
-        }
+    // Determine column selection based on role
+    const filterColumns = (() => {
+      switch (ids.role) {
+        case Role.MERCHANT:
+          return merchantColumns.SETTLEMENT;
+        case Role.VENDOR:
+          return vendorColumns.SETTLEMENT;
+        default:
+          return columns.SETTLEMENT;
       }
-      if (designation === Role.MERCHANT_OPERATIONS) {
-        if (userHierarchys || userHierarchys.length > 0) {
-          const userHierarchy = userHierarchys[0];
+    })();
 
+    // Apply user_id filter based on role and designation
+    if (role === Role.MERCHANT && designation !== Role.MERCHANT_OPERATIONS) {
+      filters.user_id = [user_id];
+    }
+    if (role === Role.VENDOR && designation !== Role.VENDOR_OPERATIONS) {
+      filters.user_id = [user_id];
+    }
+
+    // Handle MERCHANT role hierarchy
+    if (role === Role.MERCHANT) {
+      if (designation === Role.MERCHANT_OPERATIONS) {
+        const userHierarchys = await getUserHierarchysDao({ user_id });
+        if (userHierarchys && userHierarchys.length > 0) {
+          const userHierarchy = userHierarchys[0];
           if (userHierarchy?.config?.parent) {
-            filters.user_id = [userHierarchy?.config?.parent ?? null];
+            filters.user_id = [userHierarchy.config.parent];
           }
         }
       }
-    } else if (role === Role.VENDOR) {
+    }
+    // Handle VENDOR role hierarchy
+    else if (role === Role.VENDOR) {
       if (designation === Role.VENDOR_OPERATIONS) {
         const userHierarchys = await getUserHierarchysDao({ user_id });
-        if (userHierarchys || userHierarchys.length > 0) {
+        if (userHierarchys && userHierarchys.length > 0) {
           const userHierarchy = userHierarchys[0];
-
           if (userHierarchy?.config?.parent) {
-            filters.user_id = [userHierarchy?.config?.parent ?? null];
+            filters.user_id = [userHierarchy.config.parent];
           }
         }
       }
     }
 
-    const data = await getSettlementsBySearchDao(
-      filters,
-      searchTerms,
-      limitNum,
-      offset,
+    // Prepare filter object
+    const daoFilters = {
+      company_id: ids.company_id,
+      ...(ids.role_name && { role: ids.role_name }),
+      ...filters,
+    };
+
+    // Process search terms
+    const searchTerms = filters.search
+      ? filters.search
+          .split(',')
+          .map((term) => term.trim())
+          .filter((term) => term.length > 0)
+      : [];
+
+    // Call DAO
+    const settlementData = await getSettlementsBySearchDao(
+      daoFilters,
+      page,
+      limit,
+      sortBy || 'sno',
+      sortOrder || 'DESC',
       filterColumns,
-      role,
+      searchTerms,
     );
 
-    return data;
+    return settlementData;
   } catch (error) {
-    logger.error('Error while fetching chargeback by search', error);
+    logger.error('Error while fetching settlements', error);
     throw error;
   }
 };

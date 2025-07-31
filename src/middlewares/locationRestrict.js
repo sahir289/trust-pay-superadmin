@@ -3,6 +3,7 @@ import axios from 'axios';
 // import { COUNTRIES } from '../constants/index.js';
 import { logger } from '../utils/logger.js';
 import { processPayInRestricted } from '../utils/updateRestrictedLocationPayin.js';
+import { getPayInUrlDao } from '../apis/payIn/payInDao.js';
 const BLOCK_LAT = process.env.BLOCK_LAT;
 const BLOCK_LONG = process.env.BLOCK_LONG;
 const PROXY_CHECK_URL = process.env.PROXY_CHECK_URL;
@@ -18,10 +19,9 @@ const getUserLocationMiddleware = async (req, res, next) => {
     logger.warn('Fraud User. Access denied.', userIp);
     return res.status(403).send('403: Access denied');
   }
-
   const restrictedLocation = { latitude: BLOCK_LAT, longitude: BLOCK_LONG };
   const radiusKm = 60;
-  const restrictedStates = ['Haryana', 'Rajasthan'];
+  let restrictedStates = ['Haryana', 'Rajasthan'];
   try {
     // Get the user's IP address (checking for reverse proxy headers)
     // Send a request to proxycheck.io to fetch the geolocation data
@@ -41,7 +41,15 @@ const getUserLocationMiddleware = async (req, res, next) => {
         error: { message: 'VPN is Not Allowed!', data: { url } },
       });
     }
-    if (country === 'India' && restrictedStates.includes(region)) {
+    const payInUrl = await getPayInUrlDao({
+        merchant_order_id: req.params.merchantOrderId,
+    });
+    let rakpayId = 'eb58a8cb-dee6-46fb-878b-3f24272cf980';
+    if (
+      country === 'India' &&
+      restrictedStates.includes(region) &&
+      payInUrl.merchant_id != rakpayId
+    ) {
       const id = req.params.merchantOrderId;
       const url = await processPayInRestricted(
         id,

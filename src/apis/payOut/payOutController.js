@@ -21,7 +21,7 @@ import {
 } from '../../schemas/payoutSchema.js';
 import { ValidationError } from '../../utils/appErrors.js';
 import { logger } from '../../utils/logger.js';
-import { BadRequestError } from '../../utils/appErrors.js';
+// import { BadRequestError } from '../../utils/appErrors.js';
 
 const TestingIp = process.env.LOCAL_IP;
 
@@ -154,10 +154,10 @@ const getPayouts = async (req, res) => {
 
 const getPayoutsBySearch = async (req, res) => {
   const { company_id, role, user_id, designation } = req.user;
-  const { search, page = 1, limit = 10 } = req.query;
-  if (!search) {
-    throw new BadRequestError('search is required');
-  }
+  const { search, page = 1, limit = 10 , isAmount } = req.query;
+  // if (!search) {
+  //   throw new BadRequestError('search is required');
+  // }
   const data = await getPayoutsBySearchService(
     {
       company_id,
@@ -169,6 +169,7 @@ const getPayoutsBySearch = async (req, res) => {
     role,
     user_id,
     designation,
+    isAmount,
   );
   return sendSuccess(res, data, 'Payouts fetched successfully');
 };

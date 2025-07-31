@@ -44,11 +44,11 @@ const router = express.Router();
  *       401:
  *         description: Unauthorized access
  */
-router.get(
-  '/',
-  [isAuthenticated, authorized(AccessRoles.PAYOUT)],
-  tryCatchHandler(getPayouts),
-);
+// router.get(
+//   '/',
+//   [isAuthenticated, authorized(AccessRoles.PAYOUT)],
+//   tryCatchHandler(getPayouts),
+// );
 
 /**
  * @swagger
@@ -85,9 +85,14 @@ router.get(
  *         description: Unauthorized access
  */
 router.get(
-  '/search',
+  '/',
   [isAuthenticated, authorized(AccessRoles.PAYOUT)],
   tryCatchHandler(getPayoutsBySearch),
+);
+router.get(
+  '/reports',
+  [isAuthenticated, authorized(AccessRoles.PAYOUT)],
+  tryCatchHandler(getPayouts),
 );
 router.get(
   '/wallets-balance',

@@ -54,12 +54,12 @@ const router = express.Router();
  *                   example: "Unauthorized access"
  */
 router.get(
-  '/',
+  '/get',
   [isAuthenticated, authorized(AccessRoles.USER)],
   tryCatchHandler(getUsers),
 );
 router.get(
-  '/search',
+  '/',
   [isAuthenticated, authorized(AccessRoles.USER)],
   tryCatchHandler(getUsersBySearch),
 );

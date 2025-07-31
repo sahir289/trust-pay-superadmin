@@ -1,4 +1,4 @@
-import { InternalServerError, BadRequestError } from '../../utils/appErrors.js';
+import { InternalServerError } from '../../utils/appErrors.js';
 import { transactionWrapper } from '../../utils/db.js';
 import { logger } from '../../utils/logger.js';
 import { sendSuccess } from '../../utils/responseHandlers.js';
@@ -30,9 +30,9 @@ const getResetHistory = async (req, res) => {
 const getResetHistoryBySearch = async (req, res) => {
   const { company_id, role } = req.user;
   const { search, page = 1, limit = 10 } = req.query;
-  if (!search) {
-    throw new BadRequestError('search is required');
-  }
+  // if (!search) {
+  //   throw new BadRequestError('search is required');
+  // }
   const data = await getResetHistoryBySearchService(
     {
       company_id,

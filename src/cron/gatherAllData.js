@@ -331,4 +331,4 @@ const gatherAllData = async (company_id, type = 'N', timezone = 'Asia/Kolkata') 
   }
 };
 
-export default gatherAllData;
+export default gatherAllDataForAllCompanies;

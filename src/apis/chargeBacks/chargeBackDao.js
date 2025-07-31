@@ -46,6 +46,7 @@ export const getChargeBackDao = async (
   try {
     const {
       VENDOR,
+      COMPANY,
       CHARGE_BACK,
       MERCHANT,
       PAYIN,
@@ -177,7 +178,7 @@ export const getChargeBackDao = async (
         p.user AS user,
         u.user_name AS created_by,
         uu.user_name AS updated_by,
-        jsonb_build_object('blocked_users', m.config->'blocked_users') AS config,
+        jsonb_build_object('blocked_users', cm.config->'blocked_users') AS config,
       `;
     }
     //created and updated by with user name
@@ -209,6 +210,7 @@ export const getChargeBackDao = async (
         ${allColumns.join(', ')}
       FROM public."${CHARGE_BACK}" cb
       LEFT JOIN public."${VENDOR}" v ON cb.vendor_user_id = v.user_id
+      LEFT JOIN public."${COMPANY}" cm ON cb.company_id = cm.id
       LEFT JOIN public."${MERCHANT}" m ON cb.merchant_user_id = m.user_id
       LEFT JOIN public."${PAYIN}" p ON cb.payin_id = p.id
       LEFT JOIN "${BANK_RESPONSE}" br ON p.bank_response_id = br.id
@@ -460,184 +462,228 @@ export const getAllChargeBackDao = async (
 
 export const getChargeBacksBySearchDao = async (
   filters,
-  searchTerms,
-  limitNum,
-  offset,
+  page,
+  pageSize,
+  sortBy,
+  sortOrder,
+  columns = [],
+  role,
+  searchTerms = [],
 ) => {
   try {
     const {
       VENDOR,
       CHARGE_BACK,
       MERCHANT,
+      COMPANY,
       PAYIN,
+      USER,
       BANK_ACCOUNT,
       BANK_RESPONSE,
     } = tableName;
-    const conditions = [];
-    const values = [];
+
+    const conditions = [`cb.is_obsolete = false`];
+    const queryParams = [];
     let paramIndex = 1;
 
-    let queryText = `
-      SELECT 
-        "${CHARGE_BACK}".id,
-        "${CHARGE_BACK}".sno,
-        "${CHARGE_BACK}".bank_acc_id,
-        "${CHARGE_BACK}".amount,
-        "${CHARGE_BACK}".reference_date,
-        "${CHARGE_BACK}".created_by,
-        "${CHARGE_BACK}".updated_by,
-        "${CHARGE_BACK}".created_at,
-        "${CHARGE_BACK}".updated_at,
-        "${VENDOR}".code AS vendor_name,
-        "${MERCHANT}".code AS merchant_name,
-        "${PAYIN}".user AS user,
-        "${PAYIN}".merchant_order_id,
-        COALESCE("${PAYIN}".user_submitted_utr, "${BANK_RESPONSE}".utr) AS utr,
-        "${BANK_ACCOUNT}".nick_name AS bank_name
-      FROM "${CHARGE_BACK}"
-      LEFT JOIN "${VENDOR}" ON "${CHARGE_BACK}".vendor_user_id = "${VENDOR}".user_id
-      LEFT JOIN "${MERCHANT}" ON "${CHARGE_BACK}".merchant_user_id = "${MERCHANT}".user_id
-      LEFT JOIN "${PAYIN}" ON "${CHARGE_BACK}".payin_id = "${PAYIN}".id
-      LEFT JOIN "${BANK_RESPONSE}" ON "${PAYIN}".bank_response_id = "${BANK_RESPONSE}".id
-      LEFT JOIN "${BANK_ACCOUNT}" ON "${CHARGE_BACK}".bank_acc_id = "${BANK_ACCOUNT}".id
-    `;
-    queryText += ` WHERE "${CHARGE_BACK}".is_obsolete = false`;
+    // Search term logic
+    if (searchTerms.length > 0) {
+      const searchConditions = [];
 
-    if (filters && filters.company_id) {
-      queryText += ` AND "${CHARGE_BACK}".company_id = $${paramIndex}`;
-      values.push(filters.company_id);
-      paramIndex++;
-    }
-
-    // if (filters && filters.vendor_user_id) {
-    //   queryText += ` AND "${CHARGE_BACK}".vendor_user_id = $${paramIndex}`;
-    //   values.push(filters.vendor_user_id);
-    //   paramIndex++;
-    // }
-    if (filters && filters.merchant_user_id) {
-      queryText += ` AND "${CHARGE_BACK}".merchant_user_id = $${paramIndex}`;
-      values.push(filters.merchant_user_id);
-      paramIndex++;
-    }
-
-    if (filters && filters.amount) {
-      const amount = parseFloat(filters.amount);
-      if (!isNaN(amount)) {
-        queryText += ` AND "${CHARGE_BACK}".amount = $${paramIndex}`;
-        values.push(amount);
+      searchTerms.forEach((term) => {
+        searchConditions.push(`
+          (
+            LOWER(cb.id::text) LIKE LOWER($${paramIndex}) OR
+            LOWER(cb.amount::text) LIKE LOWER($${paramIndex}) OR
+            LOWER(p.user::text) LIKE LOWER($${paramIndex}) OR
+            LOWER(m.code::text) LIKE LOWER($${paramIndex}) OR
+            LOWER(v.code::text) LIKE LOWER($${paramIndex}) OR
+            LOWER(p.user_submitted_utr::text) LIKE LOWER($${paramIndex}) OR
+            LOWER(p.merchant_order_id::text) LIKE LOWER($${paramIndex}) OR
+            LOWER(br.utr::text) LIKE LOWER($${paramIndex}) OR
+            LOWER(ba.nick_name::text) LIKE LOWER($${paramIndex}) OR
+            LOWER(u.user_name::text) LIKE LOWER($${paramIndex}) OR
+            LOWER(uu.user_name::text) LIKE LOWER($${paramIndex})
+          )
+        `);
+        queryParams.push(`%${term}%`);
         paramIndex++;
+      });
+
+      if (searchConditions.length > 0) {
+        conditions.push(`(${searchConditions.join(' OR ')})`);
       }
     }
 
-    if (filters && filters.utr) {
-      queryText += ` AND "${PAYIN}".user_submitted_utr = $${paramIndex}`;
-      values.push(filters.utr);
+    // Apply start & end date filter
+    if (filters.created_at) {
+      const [day, month, year] = filters.created_at.split('-');
+      const properDateStr = `${year}-${month}-${day}`;
+      const IST = 'Asia/Kolkata';
+      let startDate = dayjs.tz(`${properDateStr} 00:00:00`, IST).utc().format();
+      let endDate = dayjs
+        .tz(`${properDateStr} 23:59:59.999`, IST)
+        .utc()
+        .format();
+      conditions.push(
+        `cb.created_at BETWEEN $${paramIndex} AND $${paramIndex + 1}`,
+      );
+      queryParams.push(startDate, endDate);
+      paramIndex += 2;
+    }
+
+    // Handle bank_name and utr filters
+    if (filters.bank_name) {
+      conditions.push(`ba.nick_name = $${paramIndex}`);
+      queryParams.push(filters.bank_name);
+      paramIndex++;
+    }
+    if (filters.user) {
+      conditions.push(`p.user = $${paramIndex}`);
+      queryParams.push(filters.user);
+      paramIndex++;
+    }
+    if (filters.utr) {
+      conditions.push(`p.user_submitted_utr = $${paramIndex}`);
+      queryParams.push(filters.utr);
+      paramIndex++;
+    }
+    if (filters.merchant_order_id) {
+      conditions.push(`p.merchant_order_id = $${paramIndex}`);
+      queryParams.push(filters.merchant_order_id); // Fixed: Push merchant_order_id
+      paramIndex++;
+    }
+    if (filters.vendor_name) {
+      conditions.push(`v.code = $${paramIndex}`);
+      queryParams.push(filters.vendor_name); // Fixed: Push merchant_order_id
       paramIndex++;
     }
 
-    if (filters && filters.bank_name) {
-      queryText += ` AND "${BANK_ACCOUNT}".nick_name = $${paramIndex}`;
-      values.push(filters.bank_name);
-      paramIndex++;
-    }
+    // Handle other filters dynamically
+    const ignoredKeys = new Set([
+      'search',
+      'startDate',
+      'endDate',
+      'bank_name',
+      'utr',
+      'merchant_order_id',
+      'user',
+      'vendor_name',
+      'created_at'
+    ]);
+    for (const [key, value] of Object.entries(filters)) {
+      if (!value || ignoredKeys.has(key)) continue;
+      const values = Array.isArray(value)
+        ? value
+        : typeof value === 'string' && value.includes(',')
+          ? value.split(',').map((v) => v.trim())
+          : [value];
 
-    // Handle merchant_user_id array
-    if (
-      filters &&
-      Array.isArray(filters.merchant_user_id) &&
-      filters.merchant_user_id.length > 0
-    ) {
-      const placeholders = filters.merchant_user_id
-        .map((_, idx) => `$${paramIndex + idx}`)
-        .join(', ');
-      queryText += ` AND "${CHARGE_BACK}".merchant_user_id IN (${placeholders})`;
-      values.push(...filters.merchant_user_id);
-      paramIndex += filters.merchant_user_id.length;
-    }
-
-    // Handle vendor_user_id array
-    if (
-      filters &&
-      Array.isArray(filters.vendor_user_id) &&
-      filters.vendor_user_id.length > 0
-    ) {
-      const placeholders = filters.vendor_user_id
-        .map((_, idx) => `$${paramIndex + idx}`)
-        .join(', ');
-      queryText += ` AND "${CHARGE_BACK}".vendor_user_id IN (${placeholders})`;
-      values.push(...filters.vendor_user_id);
-      paramIndex += filters.vendor_user_id.length;
-    }
-
-    // Build search conditions across all relevant fields
-    searchTerms.forEach((term) => {
-      if (term.toLowerCase() === 'true' || term.toLowerCase() === 'false') {
-        const boolValue = term.toLowerCase() === 'true';
-        conditions.push(`
-          (
-            "${CHARGE_BACK}".amount > 0 = $${paramIndex}  
-          )
-        `);
-        values.push(boolValue);
-        paramIndex++;
+      const placeholders = values.map((_, i) => `$${paramIndex + i}`).join(',');
+      if (values.length > 1) {
+        conditions.push(`cb.${key} IN (${placeholders})`);
       } else {
-        conditions.push(`
-          (
-            LOWER("${CHARGE_BACK}".id::text) LIKE LOWER($${paramIndex})
-            OR LOWER("${CHARGE_BACK}".sno::text) LIKE LOWER($${paramIndex})
-            OR LOWER("${CHARGE_BACK}".merchant_user_id::text) LIKE LOWER($${paramIndex})
-            OR LOWER("${CHARGE_BACK}".vendor_user_id::text) LIKE LOWER($${paramIndex})
-            OR LOWER("${CHARGE_BACK}".payin_id::text) LIKE LOWER($${paramIndex})
-            OR LOWER("${CHARGE_BACK}".bank_acc_id::text) LIKE LOWER($${paramIndex})
-            OR LOWER("${CHARGE_BACK}".amount::text) LIKE LOWER($${paramIndex})
-            OR LOWER("${CHARGE_BACK}".reference_date::text) LIKE LOWER($${paramIndex})
-            OR LOWER("${CHARGE_BACK}".created_by::text) LIKE LOWER($${paramIndex})
-            OR LOWER("${CHARGE_BACK}".updated_by::text) LIKE LOWER($${paramIndex})
-            OR LOWER("${VENDOR}".code) LIKE LOWER($${paramIndex})
-            OR LOWER("${MERCHANT}".code) LIKE LOWER($${paramIndex})
-            OR LOWER("${PAYIN}".user) LIKE LOWER($${paramIndex})
-            OR LOWER("${PAYIN}".merchant_order_id) LIKE LOWER($${paramIndex})
-            OR LOWER("${PAYIN}".user_submitted_utr) LIKE LOWER($${paramIndex})
-            OR LOWER("${BANK_RESPONSE}".utr) LIKE LOWER($${paramIndex})
-            OR LOWER("${BANK_ACCOUNT}".nick_name) LIKE LOWER($${paramIndex})
-          )
-        `);
-        values.push(`%${term}%`);
-        paramIndex++;
+        conditions.push(`cb.${key} = ${placeholders}`);
       }
-    });
-
-    if (conditions.length > 0) {
-      queryText += ' AND (' + conditions.join(' OR ') + ')';
+      queryParams.push(...values);
+      paramIndex += values.length;
     }
 
-    const countQuery = `SELECT COUNT(*) as total FROM (${queryText}) as count_table`;
+    // Column selection
+    const baseColumns =
+      columns.length > 0
+        ? columns.map((col) => `cb.${col}`).join(', ')
+        : 'cb.id, cb.payin_id, cb.amount';
 
-    queryText += `
-      ORDER BY "${CHARGE_BACK}".created_at DESC
-      LIMIT $${paramIndex}
-      OFFSET $${paramIndex + 1}
+    let extraColumns = `
+      ba.nick_name AS bank_name,
+      COALESCE(p.user_submitted_utr, br.utr) AS utr,
+      cb.created_at
     `;
-    values.push(limitNum, offset);
 
-    // Execute queries
-    const countResult = await executeQuery(countQuery, values.slice(0, -2));
-    const searchResult = await executeQuery(queryText, values);
+    if (role === Role.MERCHANT || role === Role.ADMIN) {
+      extraColumns += `,
+        m.code AS merchant_name,
+        p.user AS user,
+        p.merchant_order_id AS merchant_order_id, -- Fixed: Reference p.merchant_order_id
+        u.user_name AS created_by,
+        uu.user_name AS updated_by,
+        v.code AS vendor_name,
+        jsonb_build_object('blocked_users', cm.config->'blocked_users') AS config,
+        CASE 
+          WHEN m.config->>'sub_code' IS NOT NULL AND m.config->>'sub_code' != '' 
+          THEN m.config->>'sub_code' 
+          ELSE m.code 
+        END AS merchant_display_code
+      `;
+    }
 
-    const totalItems = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(totalItems / limitNum);
+    const allColumns = `${baseColumns}, ${extraColumns}`;
 
-    const data = {
-      totalCount: totalItems,
-      totalPages,
-      chargeBacks: searchResult.rows,
+    // Sorting
+    const validSortColumns = [
+      'id',
+      'sno',
+      'payin_id',
+      'amount',
+      'created_at',
+      'updated_at',
+    ];
+    const safeSortBy = validSortColumns.includes(sortBy)
+      ? `cb.${sortBy}`
+      : 'cb.created_at';
+    const safeSortOrder = sortOrder?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+    // Base FROM + JOIN
+    const baseFromClause = `
+      FROM public."${CHARGE_BACK}" cb
+      LEFT JOIN public."${VENDOR}" v ON cb.vendor_user_id = v.user_id
+      LEFT JOIN public."${COMPANY}" cm ON cb.company_id = cm.id
+      LEFT JOIN public."${MERCHANT}" m ON cb.merchant_user_id = m.user_id
+      LEFT JOIN public."${PAYIN}" p ON cb.payin_id = p.id
+      LEFT JOIN "${BANK_RESPONSE}" br ON p.bank_response_id = br.id
+      LEFT JOIN public."${USER}" u ON cb.created_by = u.id 
+      LEFT JOIN public."${USER}" uu ON cb.updated_by = uu.id
+      LEFT JOIN public."${BANK_ACCOUNT}" ba ON cb.bank_acc_id = ba.id
+    `;
+
+    // Final queries
+    const whereClause = `WHERE ${conditions.join(' AND ')}`;
+    const offset = (page - 1) * pageSize;
+
+    const countQuery = `SELECT COUNT(*) ${baseFromClause} ${whereClause}`;
+    const dataQuery = `
+      SELECT ${allColumns}
+      ${baseFromClause}
+      ${whereClause}
+      ORDER BY ${safeSortBy} ${safeSortOrder}
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+
+    queryParams.push(pageSize, offset);
+
+    const countResult = await executeQuery(
+      countQuery,
+      queryParams.slice(0, paramIndex - 1),
+    );
+    const totalCount = parseInt(countResult.rows[0]?.count || '0');
+
+    let result = await executeQuery(dataQuery, queryParams);
+    if (totalCount > 0 && result.rows.length === 0 && offset > 0) {
+      queryParams[queryParams.length - 1] = 0; 
+      result = await executeQuery(dataQuery, queryParams);
+    }
+    return {
+      totalCount,
+      totalPages: Math.ceil(totalCount / pageSize),
+      chargeBacks: result.rows,
     };
-    return data;
   } catch (error) {
-    logger.error('Error fetching ChargeBacks by search:', error.message);
+    logger.error('Error in getChargeBacksBySearchDao:', error.message);
     throw error;
   }
 };
+
 
 // Update ChargeBack entry
 export const updateChargeBackDao = async (id, data) => {

@@ -361,7 +361,7 @@ const createBankResponseService = async (
               payinId: updatePayInDataRes.id,
               amount: botRes.amount,
               req_amount: updatePayInDataRes.amount,
-              utr_id: updatePayInDataRes.utr,
+              utr_id: updatePayInDataRes.user_submitted_utr,
             });
           }
           // await sendNotification(Status.BANK_MISMATCH, {
@@ -481,7 +481,7 @@ const createBankResponseService = async (
             payinId: updatePayin.id,
             amount: botRes.amount,
             req_amount: updatePayin.amount,
-            utr_id: updatePayin.utr,
+            utr_id: updatePayin.user_submitted_utr,
           });
           const merchantDataBalance = merchantData[0].balance + amount;
           if (isNaN(merchantDataBalance)) {
@@ -542,7 +542,7 @@ const createBankResponseService = async (
               payinId: updatePayInDataRes.id,
               amount: botRes.amount,
               req_amount: updatePayInDataRes.amount,
-              utr_id: updatePayInDataRes.utr,
+              utr_id: updatePayInDataRes.user_submitted_utr,
             });
           }
 
@@ -691,41 +691,58 @@ const getBankResponseService = async (
   }
 };
 
-const getBankResponseBySearchService = async (
-  filters,
+const  getBankResponseBySearchService = async (
+  payload,
   role,
-  // designation,
-  // user_id,
+  page,
+  limit,
+  search,
+  updated,
+  sortBy,
+  sortOrder,
 ) => {
   try {
-    const pageNum = parseInt(filters.page);
-    const limitNum = parseInt(filters.limit);
-    if (isNaN(pageNum) || isNaN(limitNum) || pageNum < 1 || limitNum < 1) {
-      throw new BadRequestError('Invalid pagination parameters');
-    }
-    const searchTerms = filters.search
-      .split(',')
-      .map((term) => term.trim())
-      .filter((term) => term.length > 0);
-
-    if (searchTerms.length === 0) {
-      throw new BadRequestError('Please provide valid search terms');
-    }
-    const offset = (pageNum - 1) * limitNum;
-
     const filterColumns =
       role === Role.MERCHANT
-        ? merchantColumns.SETTLEMENT
+        ? merchantColumns.BANK_RESPONSE
         : role === Role.VENDOR
-          ? vendorColumns.SETTLEMENT
-          : columns.SETTLEMENT;
+          ? vendorColumns.BANK_RESPONSE
+          : columns.BANK_RESPONSE;
+
+    const sno = Number(payload.sno) > 0 ? Number(payload.sno) : undefined;
+    const amount =
+      Number(payload.amount) > 0 ? Number(payload.amount) : undefined;
+
+    let filters = Object.fromEntries(
+      Object.entries({
+        sno,
+        status: payload.status || undefined,
+        amount,
+        utr: payload.utr || undefined,
+        bank_id: payload.bank_id || undefined,
+        is_used: payload.is_used || undefined,
+        company_id: payload.company_id || undefined,
+        upi_short_code: payload.upi_short_code || undefined,
+        updated_by: payload.updated_by || undefined,
+        updated_at: payload.updated_at || undefined,
+      }).filter(([, v]) => v !== undefined),
+    );
+    filters = {
+      ...(search ? { search } : {}),
+      ...filters,
+    };
+    sortBy = sortBy ? sortBy : updated ? 'updated_at' : 'sno';
 
     const data = await getBankResponseBySearchDao(
       filters,
-      searchTerms,
-      limitNum,
-      offset,
+      page,
+      limit,
       filterColumns,
+      updated,
+      sortBy,
+      sortOrder || 'DESC',
+      payload.startDate || undefined,
+      payload.endDate || undefined,
     );
 
     return data;

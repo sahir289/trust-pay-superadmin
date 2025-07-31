@@ -279,54 +279,150 @@ const getAllBankaccountDao = async (
 };
 
 const getBankAccountsBySearchDao = async (
-  company_id,
-  role,
-  searchTerms,
-  limitNum,
-  offset,
-  bank_used_for,
-  designation,
   filters,
+  page,
+  limit,
+  role,
+  designation,
+  searchTerms = [],
 ) => {
   try {
+    let queryParams = [];
+    let conditions = [];
+    let paramIndex = 1;
+
+    // Date range filter
+    if (filters?.startDate && filters?.endDate) {
+      conditions.push(
+        `ba.created_at BETWEEN $${paramIndex} AND $${paramIndex + 1}`,
+      );
+      queryParams.push(filters.startDate, filters.endDate);
+      paramIndex += 2;
+    }
+
+    // Bank used for filter
+    if (filters?.bank_used_for) {
+      conditions.push(`ba.bank_used_for = $${paramIndex}`);
+      queryParams.push(filters.bank_used_for);
+      paramIndex++;
+    }
+
+    // Nickname filter
+    if (filters?.nick_name) {
+      conditions.push(`ba.nick_name = $${paramIndex}`);
+      queryParams.push(filters.nick_name);
+      paramIndex++;
+    }
+
+    // Merchant ID filter
+    if (filters?.merchant_id) {
+      conditions.push(
+        `(ba.config->'merchants')::jsonb ?| $${paramIndex}::text[]`,
+      );
+      queryParams.push(filters.merchant_id);
+      paramIndex++;
+    }
+
+    // Other filters
+    if (filters && Object.keys(filters).length > 0) {
+      Object.keys(filters).forEach((key) => {
+        if (key === 'page' || key === 'limit') return; // Skip pagination keys
+        const value = filters[key];
+        if (value !== null && value !== undefined && value !== '') {
+          if (Array.isArray(value)) {
+            conditions.push(`ba."${key}" = ANY($${paramIndex})`);
+            queryParams.push(value);
+          } else {
+            conditions.push(`ba."${key}" = $${paramIndex}`);
+            queryParams.push(value);
+          }
+          paramIndex++;
+        }
+      });
+    }
+
+    // Search terms filter
+    if (searchTerms?.length) {
+      const searchConditions = [];
+      searchTerms.forEach((term) => {
+        if (term.toLowerCase() === 'true' || term.toLowerCase() === 'false') {
+          const boolValue = term.toLowerCase() === 'true';
+          searchConditions.push(`ba.is_enabled = $${paramIndex}`);
+          queryParams.push(boolValue);
+          paramIndex++;
+        } else {
+          const likeVal = `%${term}%`;
+          searchConditions.push(`
+            (
+              LOWER(ba.id::text) LIKE LOWER($${paramIndex})
+              OR LOWER(ba.sno::text) LIKE LOWER($${paramIndex})
+              OR LOWER(ba.upi_id) LIKE LOWER($${paramIndex})
+              OR LOWER(ba.acc_holder_name) LIKE LOWER($${paramIndex})
+              OR LOWER(ba.nick_name) LIKE LOWER($${paramIndex})
+              OR LOWER(ba.acc_no) LIKE LOWER($${paramIndex})
+              OR LOWER(ba.bank_name) LIKE LOWER($${paramIndex})
+              OR LOWER(ba.ifsc) LIKE LOWER($${paramIndex})
+              OR LOWER(ba.user_id::text) LIKE LOWER($${paramIndex})
+              OR LOWER(ba.created_at::text) LIKE LOWER($${paramIndex})
+              OR LOWER(ba.updated_at::text) LIKE LOWER($${paramIndex})
+              OR LOWER(creator.user_name) LIKE LOWER($${paramIndex})
+              OR LOWER(updater.user_name) LIKE LOWER($${paramIndex})
+              OR LOWER(v.code) LIKE LOWER($${paramIndex})
+              OR LOWER(m.merchant_details->>'code') LIKE LOWER($${paramIndex})
+              OR LOWER(ba.config->>'max_limit') LIKE LOWER($${paramIndex})
+            )
+          `);
+          queryParams.push(likeVal);
+          paramIndex++;
+        }
+      });
+      conditions.push(`(${searchConditions.join(' OR ')})`);
+    }
+
+    // Pagination
+    let limitcondition = '';
+    if (page && limit) {
+      limitcondition = `LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+      queryParams.push(limit, (page - 1) * limit);
+      paramIndex += 2;
+    }
+
+    // Role-based select fields
     let commissionSelect = '';
     if (role === 'MERCHANT') {
       commissionSelect = '';
     } else if (role === 'VENDOR') {
       commissionSelect = `
-        ba.ifsc, 
+        ba.ifsc AS ifsc_code, 
         ba.payin_count, 
         ba.balance, 
-        ba.today_balance, 
-        ba.bank_used_for, 
-        ba.config->>'is_freeze' AS freezed,
-        ba.config->>'is_intent' AS intent,
-        ba.config->>'is_phonepay' AS phonepe,
-        ba.config->>'max_limit' AS daily_limit
-      `;
+        ba.today_balance,
+        ba.is_enabled,   
+        ba.bank_used_for,
+        ba.config->>'max_limit' AS daily_limit,
+        (ba.config->>'is_freeze')::boolean AS is_freezed`;
     } else {
       commissionSelect = `
+        ba.user_id, 
         ba.ifsc, 
         ba.min, 
         ba.max, 
         ba.payin_count, 
         ba.balance, 
+        ba.is_qr, 
+        ba.is_bank, 
+        ba.is_enabled, 
         ba.today_balance, 
         ba.bank_used_for, 
         creator.user_name AS created_by, 
         updater.user_name AS updated_by, 
-        ${designation === Role.SUPER_ADMIN || Role.ADMIN ? `COALESCE(m.merchant_details, '[]'::jsonb) AS Merchant_Details, ba.config,` : ''}
+        ${designation === Role.SUPER_ADMIN || Role.ADMIN || Role.OPERATIONS || Role.TRANSACTIONS ? `COALESCE(m.merchant_details, '[]'::jsonb) AS Merchant_Details, ba.config,` : ''}
         ba.created_at, 
-        ba.updated_at
-      `;
+        ba.updated_at`;
     }
 
-    const conditions = ['ba.company_id = $1'];
-    const searchConditions = [];
-    const values = [company_id];
-    let paramIndex = 2;
-
-    let baseQuery = `
+    // Base query
+    const baseQuery = `
       SELECT 
         ba.id, 
         ba.sno, 
@@ -336,11 +432,9 @@ const getBankAccountsBySearchDao = async (
         ba.nick_name, 
         ba.acc_no, 
         ba.bank_name, 
-        ba.is_qr, 
-        ba.is_bank, 
-        ba.is_enabled,
-        ${commissionSelect},
-        v.code AS Vendor
+        ba.is_obsolete,
+        ${commissionSelect ? `${commissionSelect},` : ''}
+        v.code AS Vendor 
       FROM 
         public."BankAccount" ba
       LEFT JOIN public."Vendor" v 
@@ -357,128 +451,57 @@ const getBankAccountsBySearchDao = async (
         ON ba.created_by = creator.id
       LEFT JOIN public."User" updater 
         ON ba.updated_by = updater.id
-      WHERE 1=1
+      WHERE 
+        ${conditions.length ? conditions.join(' AND ') : '1 = 1'}
     `;
 
-    if (bank_used_for) {
-      conditions.push(`LOWER(ba.bank_used_for) = $${paramIndex}`);
-      values.push(bank_used_for.toLowerCase());
-      paramIndex++;
-    }
+    // Count query
+    const countQuery = `SELECT COUNT(*) AS total FROM (${baseQuery}) AS count_table`;
 
-    searchTerms.forEach((term) => {
-      if (term.toLowerCase() === 'true' || term.toLowerCase() === 'false') {
-        const boolValue = term.toLowerCase() === 'true';
-        searchConditions.push(`
-          (
-            ba.is_qr = $${paramIndex}
-            OR ba.is_bank = $${paramIndex}
-            OR ba.is_enabled = $${paramIndex}
-          )
-        `);
-        values.push(boolValue);
-        paramIndex++;
-      } else {
-        searchConditions.push(`
-          (
-            LOWER(ba.id::text) LIKE LOWER($${paramIndex})
-            OR LOWER(ba.sno::text) LIKE LOWER($${paramIndex})
-            OR LOWER(ba.upi_id) LIKE LOWER($${paramIndex})
-            OR LOWER(ba.acc_holder_name) LIKE LOWER($${paramIndex})
-            OR LOWER(ba.upi_params::text) LIKE LOWER($${paramIndex})
-            OR LOWER(ba.nick_name) LIKE LOWER($${paramIndex})
-            OR LOWER(ba.acc_no) LIKE LOWER($${paramIndex})
-            OR LOWER(ba.bank_name) LIKE LOWER($${paramIndex})
-            OR LOWER(v.code) LIKE LOWER($${paramIndex})
-            OR LOWER(ba.config->>'merchants') LIKE LOWER($${paramIndex})
-            OR EXISTS (
-              SELECT 1 
-              FROM jsonb_array_elements_text((ba.config->'merchants')::jsonb) AS merchant_id
-              WHERE LOWER(merchant_id) LIKE LOWER($${paramIndex})
-            )
-            ${
-              role !== 'MERCHANT'
-                ? `
-              OR LOWER(ba.user_id::text) LIKE LOWER($${paramIndex})
-              OR LOWER(ba.ifsc) LIKE LOWER($${paramIndex})
-              OR ba.min::text LIKE $${paramIndex}
-              OR ba.max::text LIKE $${paramIndex}
-              OR ba.payin_count::text LIKE $${paramIndex}
-              OR ba.balance::text LIKE $${paramIndex}
-              OR ba.today_balance::text LIKE $${paramIndex}
-              OR LOWER(ba.bank_used_for) LIKE LOWER($${paramIndex})
-              ${
-                role !== 'VENDOR'
-                  ? `
-                OR LOWER(creator.user_name) LIKE LOWER($${paramIndex})
-                OR LOWER(updater.user_name) LIKE LOWER($${paramIndex})
-              `
-                  : ''
-              }
-            `
-                : role === 'VENDOR'
-                  ? `
-              OR LOWER(ba.ifsc_code) LIKE LOWER($${paramIndex})
-              OR ba.payin_count::text LIKE $${paramIndex}
-              OR ba.balance::text LIKE $${paramIndex}
-              OR ba.today_balance::text LIKE $${paramIndex}
-              OR LOWER(ba.bank_used_for) LIKE LOWER($${paramIndex})
-            `
-                  : ''
-            }
-            OR LOWER(m.merchant_details::text) LIKE LOWER($${paramIndex})
-          )
-        `);
-        values.push(`%${term}%`);
-        paramIndex++;
-      }
-    });
-
-    if (conditions.length > 0) {
-      baseQuery += ' AND ' + conditions.join(' AND ');
-    }
-    if (searchConditions.length > 0) {
-      baseQuery += ' AND (' + searchConditions.join(' OR ') + ')';
-    }
-
-    if (filters && Object.keys(filters).length > 0) {
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value !== null && value !== undefined && value !== '') {
-          if (Array.isArray(value)) {
-            baseQuery += ` AND ba."${key}" = ANY($${paramIndex})`;
-            values.push(value);
-          } else {
-            baseQuery += ` AND ba."${key}" = $${paramIndex}`;
-            values.push(value);
-          }
-          paramIndex++;
-        }
-      });
-    }
-
-    const countQuery = `SELECT COUNT(*) as total FROM (${baseQuery}) as count_table`;
-
-    baseQuery += `
-      ORDER BY 
-        ba.is_enabled DESC, 
-        ba.updated_at DESC
-      LIMIT $${paramIndex}
-      OFFSET $${paramIndex + 1}
+    // Main query with sorting and pagination
+    const mainQuery = `
+      ${baseQuery}
+      ORDER BY ba.is_obsolete ASC NULLS LAST,
+       ba.is_enabled DESC,  
+       ba.updated_at DESC  
+      ${limitcondition};
     `;
-    values.push(limitNum, offset);
 
-    const countResult = await executeQuery(countQuery, values.slice(0, -2));
-    const searchResult = await executeQuery(baseQuery, values);
+    // Execute queries
+    const [countResult, searchResult] = await Promise.all([
+      executeQuery(
+        countQuery,
+        queryParams.slice(0, page && limit ? -2 : queryParams.length),
+      ),
+      executeQuery(mainQuery, queryParams),
+    ]);
 
-    const totalItems = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(totalItems / limitNum);
+    const totalCount = parseInt(countResult.rows[0].total);
+    let totalPages = limit ? Math.ceil(totalCount / limit) : 1;
 
-    const data = {
-      totalCount: totalItems,
+    if (
+      totalCount > 0 &&
+      searchResult.rows.length === 0 &&
+      page &&
+      limit &&
+      (page - 1) * limit > 0
+    ) {
+      queryParams[queryParams.length - 1] = 0; 
+      const newSearchResult = await executeQuery(mainQuery, queryParams);
+      totalPages = limit ? Math.ceil(totalCount / limit) : 1;
+      return {
+        totalCount,
+        totalPages,
+        banks: newSearchResult.rows,
+      };
+    }
+
+    return {
+      totalCount,
       totalPages,
-      bankAccounts: searchResult.rows,
+      banks: searchResult.rows,
     };
-    return data;
+    
   } catch (error) {
     logger.error('Error in getBankAccountsBySearchDao:', error);
     throw error;

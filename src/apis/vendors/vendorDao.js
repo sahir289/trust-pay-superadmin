@@ -152,7 +152,7 @@ export const getAllVendorsDao = async (
   pageSize = 10,
   sortBy = 'created_at',
   sortOrder = 'DESC',
-  role,
+  role
 ) => {
   try {
     let baseQuery;
@@ -244,9 +244,9 @@ export const getAllVendorsDao = async (
 
 export const getVendorsBySearchDao = async (
   filters,
-  searchTerms,
-  limitNum,
-  offset,
+  pageNumber ,
+  pageSize ,
+  searchTerms
 ) => {
   try {
     const conditions = [];
@@ -265,7 +265,7 @@ export const getVendorsBySearchDao = async (
       `"Vendor".updated_at`,
       `"user_main".first_name || ' ' || "user_main".last_name AS full_name`,
       `"d".designation AS designation_name`,
-      `(SELECT net_balance FROM "Calculation" WHERE "Calculation".user_id = "Vendor".user_id ORDER BY "Calculation".updated_at DESC LIMIT 1) AS balance`,
+      `(SELECT net_balance FROM "Calculation" WHERE "Calculation".user_id = "Vendor".user_id ORDER BY "Calculation".created_at DESC LIMIT 1) AS balance`,
     ];
 
     // Add extra columns for admin
@@ -277,7 +277,7 @@ export const getVendorsBySearchDao = async (
         `"Vendor".company_id`,
         `"user_main".designation_id`,
         `u.user_name AS created_by`,
-        `uu.user_name AS updated_by,`,
+        `uu.user_name AS updated_by`,
       );
     }
 
@@ -301,64 +301,70 @@ export const getVendorsBySearchDao = async (
       values.push(filters.user_id);
       paramIndex += 1;
     }
-    searchTerms.forEach((term) => {
-      // Handle boolean terms
-      if (term.toLowerCase() === 'true' || term.toLowerCase() === 'false') {
-        const boolValue = term.toLowerCase() === 'true';
-        conditions.push(`
-          ("Vendor".config->>'is_enabled')::boolean = $${paramIndex}
-        `);
-        values.push(boolValue);
-        paramIndex++;
-      } else {
-        // Handle text/numeric terms including JSON fields and balance
-        conditions.push(`
-      (
-        LOWER("Vendor".id::text) LIKE LOWER($${paramIndex})
-        OR LOWER("Vendor".user_id::text) LIKE LOWER($${paramIndex})
-        OR LOWER("Vendor".first_name) LIKE LOWER($${paramIndex})
-        OR LOWER("Vendor".last_name) LIKE LOWER($${paramIndex})
-        OR LOWER("Vendor".code) LIKE LOWER($${paramIndex})
-        OR "Vendor".payin_commission::text LIKE $${paramIndex}
-        OR "Vendor".payout_commission::text LIKE $${paramIndex}
-        OR LOWER("Vendor".created_by::text) LIKE LOWER($${paramIndex})
-        OR LOWER("Vendor".updated_by::text) LIKE LOWER($${paramIndex})
-        OR LOWER("user_main".first_name || ' ' || "user_main".last_name) LIKE LOWER($${paramIndex})
-        OR LOWER("d".designation) LIKE LOWER($${paramIndex})
-        OR LOWER("Vendor".config->>'utr') LIKE LOWER($${paramIndex})
-        OR (
-          SELECT net_balance::text 
-          FROM "Calculation" 
-          WHERE "Calculation".user_id = "Vendor".user_id 
-          ORDER BY "Calculation".updated_at DESC 
-          LIMIT 1
-        ) LIKE $${paramIndex}
-      )
-    `);
-        values.push(`%${term}%`);
-        paramIndex++;
-      }
-    });
+    if (searchTerms) {
+      searchTerms.forEach((term) => {
+        if (term.toLowerCase() === 'true' || term.toLowerCase() === 'false') {
+          const boolValue = term.toLowerCase() === 'true';
+          conditions.push(`
+            ("Vendor".config->>'is_enabled')::boolean = $${paramIndex}
+          `);
+          values.push(boolValue);
+          paramIndex++;
+        } else {
+          conditions.push(`
+            (
+              LOWER("Vendor".id::text) LIKE LOWER($${paramIndex})
+              OR LOWER("Vendor".user_id::text) LIKE LOWER($${paramIndex})
+              OR LOWER("Vendor".first_name) LIKE LOWER($${paramIndex})
+              OR LOWER("Vendor".last_name) LIKE LOWER($${paramIndex})
+              OR LOWER("Vendor".code) LIKE LOWER($${paramIndex})
+              OR "Vendor".payin_commission::text LIKE $${paramIndex}
+              OR "Vendor".payout_commission::text LIKE $${paramIndex}
+              OR LOWER("Vendor".created_by::text) LIKE LOWER($${paramIndex})
+              OR LOWER("Vendor".updated_by::text) LIKE LOWER($${paramIndex})
+              OR LOWER("user_main".first_name || ' ' || "user_main".last_name) LIKE LOWER($${paramIndex})
+              OR LOWER("d".designation) LIKE LOWER($${paramIndex})
+              OR LOWER("Vendor".config->>'utr') LIKE LOWER($${paramIndex})
+              OR (
+                SELECT net_balance::text 
+                FROM "Calculation" 
+                WHERE "Calculation".user_id = "Vendor".user_id 
+                ORDER BY "Calculation".created_at DESC 
+                LIMIT 1
+              ) LIKE $${paramIndex}
+            )
+          `);
+          values.push(`%${term}%`);
+          paramIndex++;
+        }
+      });
+    }
 
     if (conditions.length > 0) {
       queryText += ' AND (' + conditions.join(' OR ') + ')';
     }
 
     const countQuery = `SELECT COUNT(*) as total FROM (${queryText}) as count_table`;
+    const countResult = await executeQuery(countQuery, values);
+
+    // Calculate offset - pageNumber is 1-based
+    const offset = (pageNumber - 1) * pageSize;
 
     queryText += `
-      ORDER BY "Vendor"."created_at" DESC
+      ORDER BY "Vendor"."updated_at" DESC
       LIMIT $${paramIndex}
       OFFSET $${paramIndex + 1}
     `;
-    values.push(limitNum, offset);
-    const countResult = await executeQuery(countQuery, values.slice(0, -2));
-    const searchResult = await executeQuery(queryText, values);
-
+    values.push(pageSize, offset);
+    let searchResult = await executeQuery(queryText, values);
     // Calculate pagination metadata
     const totalItems = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(totalItems / limitNum);
-
+    let totalPages = Math.ceil(totalItems / pageSize);
+    if (totalItems > 0 && searchResult.rows.length === 0 && offset > 0) {
+      values[values.length - 1] = 0;
+      searchResult = await executeQuery(queryText, values);
+      totalPages = Math.ceil(totalItems / pageSize);
+    }
     const data = {
       totalCount: totalItems,
       totalPages,
