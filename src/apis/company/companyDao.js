@@ -27,6 +27,26 @@ const getCompanyDao = async (filters, page, pageSize, sortBy, sortOrder) => {
   }
 };
 
+const getCompanyNamesDao = async () => {
+  try {
+    const baseQuery = `SELECT id, first_name, last_name FROM "${tableName.COMPANY}" WHERE 1=1`;
+    //TODO: columns.Company dynamic search
+    const [sql, queryParams] = buildSelectQuery(
+      baseQuery,
+      {},
+      null,
+      null,
+      "first_name || ' ' || last_name",
+      'ASC',
+    );
+    const result = await executeQuery(sql, queryParams);
+    return result.rows.length > 0 ? result.rows : result.rows[0];
+  } catch (error) {
+    logger.error('Error fetching company:', error);
+    throw error;
+  }
+};
+
 const getCompanyByIDDao = async (
   filters,
 ) => {
@@ -87,4 +107,5 @@ export {
   updateCompanyDao,
   deleteCompanyDao,
   getCompanyByIDDao,
+  getCompanyNamesDao,
 };

@@ -42,15 +42,16 @@ const getBankaccount = async (req, res) => {
 };
 
 const getBankAccountBySearch = async (req, res) => {
-  const { company_id } = req.user;
   const { role, user_id, designation } = req.user;
-  const { page, limit, bank_used_for, search } = req.query;
+  const { page, limit, bank_used_for, search, company_id } = req.query;
   const filters = {
     bank_used_for,
   };
+  if (company_id) {
+    filters.company_id = company_id;
+  }
   const data = await getBankAccountBySearchService(
     filters,
-    company_id,
     role,
     page,
     limit,
@@ -121,7 +122,7 @@ const createBankaccount = async (req, res) => {
     role,
   );
   if (unique.length > 0) {
-    return sendError(res, 'Nick Name Must Be Unique', 400)
+    return sendError(res, 'Nick Name Must Be Unique', 400);
   }
   // const data =
   const bankDetail = await transactionWrapper(createBankaccountService)(

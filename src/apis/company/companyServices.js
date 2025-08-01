@@ -2,6 +2,7 @@ import {
   createCompanyDao,
   deleteCompanyDao,
   getCompanyDao,
+  getCompanyNamesDao,
   updateCompanyDao,
 } from './companyDao.js';
 import { createUserService } from '../users/userService.js';
@@ -14,6 +15,16 @@ import { logger } from '../../utils/logger.js';
 const getCompanyService = async (id) => {
   try {
     const result = await getCompanyDao(id);
+    return result;
+  } catch (error) {
+    logger.error('error getting while company', error);
+    throw error;
+  }
+};
+
+const getCompanyNamesService = async () => {
+  try {
+    const result = await getCompanyNamesDao();
     return result;
   } catch (error) {
     logger.error('error getting while company', error);
@@ -119,4 +130,5 @@ export {
   createCompanyService,
   updateCompanyService,
   deleteCompanyService,
+  getCompanyNamesService,
 };

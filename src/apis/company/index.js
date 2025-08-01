@@ -6,6 +6,7 @@ import {
   getCompany,
   updateCompany,
   getCompanyById,
+  getCompanyNamesController,
 } from './companyController.js';
 import { authorized, isAuthenticated } from '../../middlewares/auth.js';
 import { AccessRoles } from '../../constants/index.js';
@@ -55,6 +56,12 @@ router.get(
   '/',
   [isAuthenticated, authorized(AccessRoles.COMPANY)],
   tryCatchHandler(getCompany),
+);
+
+router.get(
+  '/company-names',
+  [isAuthenticated, authorized(AccessRoles.COMPANY)],
+  tryCatchHandler(getCompanyNamesController),
 );
 
 /**

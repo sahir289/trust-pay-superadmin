@@ -62,16 +62,18 @@ const getClaimResponse = async (req, res) => {
 };
 
 const getBankResponseBySearch = async (req, res) => {
-  const { role, company_id } = req.user;
-  const { page, limit, search, updated, sortOrder, sortBy, ...rest } =
+  const { role } = req.user;
+  const { page, limit, search, updated, sortOrder, sortBy, company_id, ...rest } =
     req.query;
   delete req.query.sortOrder;
   delete req.query.sortBy;
   const payload = {
     ...req.query,
-    company_id,
     ...rest,
   };
+  if (company_id) {
+    payload.company_id = company_id;
+  }
   const data = await getBankResponseBySearchService(
     payload,
     role,

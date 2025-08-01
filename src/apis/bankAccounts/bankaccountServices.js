@@ -65,7 +65,6 @@ const getBankaccountService = async (
 
 const getBankAccountBySearchService = async (
   filters,
-  company_id,
   role,
   page,
   limit,
@@ -95,7 +94,7 @@ const getBankAccountBySearchService = async (
         .filter((term) => term.length > 0);
     }
     const banks = await getBankAccountsBySearchDao(
-      { company_id, ...filters },
+      { ...filters },
       pageNumber,
       pageSize,
       role,

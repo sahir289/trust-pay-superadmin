@@ -260,8 +260,18 @@ export const applySortingAndPagination = (
   const order =
     (sortOrder && sortOrder.toUpperCase()) === 'ASC' ? 'ASC' : 'DESC';
 
-  // Add sorting
-  query += ` ORDER BY ${prefix}"${sortBy || 'created_at'}" ${order}`;
+  // Detect if sortBy is a raw SQL expression (contains space, operator, parentheses, comma)
+  let sortClause;
+  if (!sortBy) {
+    sortClause = `${prefix}"created_at" ${order}`;
+  } else if (/\s|\|\||\+|\(|\)|,/.test(sortBy)) {
+    // Raw SQL expression, do not quote
+    sortClause = `${sortBy} ${order}`;
+  } else {
+    // Simple column name, quote it
+    sortClause = `${prefix}"${sortBy}" ${order}`;
+  }
+  query += ` ORDER BY ${sortClause}`;
 
   // Add pagination if values are passed
   if (Number(page) && Number(pageSize)) {

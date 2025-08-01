@@ -3,6 +3,7 @@ import { sendSuccess } from '../../utils/responseHandlers.js';
 import {
   createCompanyService,
   deleteCompanyService,
+  getCompanyNamesService,
   getCompanyService,
   updateCompanyService,
 } from './companyServices.js';
@@ -17,6 +18,11 @@ const getCompany = async (req, res) => {
   const search = req.query.search;
   const data = await getCompanyService(search);
   return sendSuccess(res, data, 'get Company successfully');
+};
+
+const getCompanyNamesController = async (req, res) => {
+  const data = await getCompanyNamesService();
+  return sendSuccess(res, data, 'get Company names successfully');
 };
 
 const getCompanyById = async (req, res) => {
@@ -73,4 +79,5 @@ export {
   createCompany,
   updateCompany,
   deleteCompany,
+  getCompanyNamesController,
 };
