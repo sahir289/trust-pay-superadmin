@@ -152,7 +152,7 @@ export const getAllVendorsDao = async (
   pageSize = 10,
   sortBy = 'created_at',
   sortOrder = 'DESC',
-  role
+  role,
 ) => {
   try {
     let baseQuery;
@@ -244,14 +244,14 @@ export const getAllVendorsDao = async (
 
 export const getVendorsBySearchDao = async (
   filters,
-  pageNumber ,
-  pageSize ,
-  searchTerms
+  pageNumber,
+  pageSize,
+  searchTerms,
 ) => {
   try {
     const conditions = [];
-    const values = [filters.company_id];
-    let paramIndex = 2;
+    const values = [];
+    let paramIndex = 1;
 
     // Build base SELECT columns based on role
     const columns = [
@@ -265,6 +265,7 @@ export const getVendorsBySearchDao = async (
       `"Vendor".updated_at`,
       `"user_main".first_name || ' ' || "user_main".last_name AS full_name`,
       `"d".designation AS designation_name`,
+      `c.first_name || ' ' || c.last_name AS company`,
       `(SELECT net_balance FROM "Calculation" WHERE "Calculation".user_id = "Vendor".user_id ORDER BY "Calculation".created_at DESC LIMIT 1) AS balance`,
     ];
 
@@ -287,6 +288,8 @@ export const getVendorsBySearchDao = async (
       FROM "Vendor"
       JOIN "User" AS user_main ON "Vendor".user_id = user_main.id
       LEFT JOIN "Designation" AS d ON user_main.designation_id = d.id
+      LEFT JOIN public."Company" c
+        ON "Vendor".company_id = c.id
       ${
         filters.role === Role.ADMIN || filters.role === Role.SUPER_ADMIN
           ? `LEFT JOIN "User" AS u ON "Vendor".created_by = u.id
@@ -294,13 +297,21 @@ export const getVendorsBySearchDao = async (
           : ''
       }
       WHERE "Vendor".is_obsolete = false
-      AND "Vendor"."company_id" = $1
     `;
+
+    // Add company_id filter only if present in filters
+    if (filters.company_id) {
+      queryText += ` AND "Vendor"."company_id" = $${paramIndex}`;
+      values.push(filters.company_id);
+      paramIndex++;
+    }
+
     if (filters.user_id) {
       queryText += ` AND "Vendor"."user_id" = $${paramIndex}`;
       values.push(filters.user_id);
       paramIndex += 1;
     }
+
     if (searchTerms) {
       searchTerms.forEach((term) => {
         if (term.toLowerCase() === 'true' || term.toLowerCase() === 'false') {
@@ -323,6 +334,7 @@ export const getVendorsBySearchDao = async (
               OR LOWER("Vendor".created_by::text) LIKE LOWER($${paramIndex})
               OR LOWER("Vendor".updated_by::text) LIKE LOWER($${paramIndex})
               OR LOWER("user_main".first_name || ' ' || "user_main".last_name) LIKE LOWER($${paramIndex})
+              OR LOWER(c.first_name || ' ' || c.last_name) LIKE LOWER($${paramIndex})
               OR LOWER("d".designation) LIKE LOWER($${paramIndex})
               OR LOWER("Vendor".config->>'utr') LIKE LOWER($${paramIndex})
               OR (
@@ -376,6 +388,7 @@ export const getVendorsBySearchDao = async (
     throw error;
   }
 };
+
 export const updateVendorDao = async (id, data, conn) => {
   try {
     const [sql, params] = buildUpdateQuery(tableName.VENDOR, data, id);

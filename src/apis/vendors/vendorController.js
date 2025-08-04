@@ -52,8 +52,8 @@ const getVendors = async (req, res) => {
 };
 
 const getVendorsBySearch = async (req, res) => {
-  const { company_id, role, user_id, designation  } = req.user;
-  const { page, limit } = req.query;
+  const { role, user_id, designation  } = req.user;
+  const { page, limit, company_id } = req.query;
   const data = await getVendorsBySearchService(
     {
       company_id,

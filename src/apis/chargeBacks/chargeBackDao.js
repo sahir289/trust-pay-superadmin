@@ -500,6 +500,7 @@ export const getChargeBacksBySearchDao = async (
             LOWER(v.code::text) LIKE LOWER($${paramIndex}) OR
             LOWER(p.user_submitted_utr::text) LIKE LOWER($${paramIndex}) OR
             LOWER(p.merchant_order_id::text) LIKE LOWER($${paramIndex}) OR
+            LOWER(c.first_name || ' ' || c.last_name) LIKE LOWER($${paramIndex}) OR
             LOWER(br.utr::text) LIKE LOWER($${paramIndex}) OR
             LOWER(ba.nick_name::text) LIKE LOWER($${paramIndex}) OR
             LOWER(u.user_name::text) LIKE LOWER($${paramIndex}) OR
@@ -569,7 +570,7 @@ export const getChargeBacksBySearchDao = async (
       'merchant_order_id',
       'user',
       'vendor_name',
-      'created_at'
+      'created_at',
     ]);
     for (const [key, value] of Object.entries(filters)) {
       if (!value || ignoredKeys.has(key)) continue;
@@ -601,13 +602,13 @@ export const getChargeBacksBySearchDao = async (
       cb.created_at
     `;
 
-    if (role === Role.MERCHANT || role === Role.ADMIN) {
-      extraColumns += `,
+    extraColumns += `,
         m.code AS merchant_name,
         p.user AS user,
         p.merchant_order_id AS merchant_order_id, -- Fixed: Reference p.merchant_order_id
         u.user_name AS created_by,
         uu.user_name AS updated_by,
+        c.first_name || ' ' || c.last_name AS company,
         v.code AS vendor_name,
         jsonb_build_object('blocked_users', cm.config->'blocked_users') AS config,
         CASE 
@@ -616,7 +617,6 @@ export const getChargeBacksBySearchDao = async (
           ELSE m.code 
         END AS merchant_display_code
       `;
-    }
 
     const allColumns = `${baseColumns}, ${extraColumns}`;
 
@@ -644,7 +644,8 @@ export const getChargeBacksBySearchDao = async (
       LEFT JOIN "${BANK_RESPONSE}" br ON p.bank_response_id = br.id
       LEFT JOIN public."${USER}" u ON cb.created_by = u.id 
       LEFT JOIN public."${USER}" uu ON cb.updated_by = uu.id
-      LEFT JOIN public."${BANK_ACCOUNT}" ba ON cb.bank_acc_id = ba.id
+      LEFT JOIN public."${BANK_ACCOUNT}" ba ON cb.bank_acc_id = ba.id 
+      LEFT JOIN public."Company" c ON cb.company_id = c.id
     `;
 
     // Final queries
@@ -670,7 +671,7 @@ export const getChargeBacksBySearchDao = async (
 
     let result = await executeQuery(dataQuery, queryParams);
     if (totalCount > 0 && result.rows.length === 0 && offset > 0) {
-      queryParams[queryParams.length - 1] = 0; 
+      queryParams[queryParams.length - 1] = 0;
       result = await executeQuery(dataQuery, queryParams);
     }
     return {
@@ -683,7 +684,6 @@ export const getChargeBacksBySearchDao = async (
     throw error;
   }
 };
-
 
 // Update ChargeBack entry
 export const updateChargeBackDao = async (id, data) => {

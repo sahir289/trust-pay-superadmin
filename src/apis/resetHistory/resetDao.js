@@ -134,8 +134,8 @@ const getResetHistoryBySearchDao = async (
 ) => {
   try {
     const conditions = [];
-    const values = [company_id];
-    let paramIndex = 2;
+    const values = [];
+    let paramIndex = 1;
 
     // Default columns with table aliases
 
@@ -147,6 +147,7 @@ const getResetHistoryBySearchDao = async (
           'status', p.status,
           'user_submitted_utr', p.user_submitted_utr
         ) AS new_details,
+        c.first_name || ' ' || c.last_name AS company,
         json_build_object(
           'amount', br.amount,
           'utr', br.utr,
@@ -154,16 +155,24 @@ const getResetHistoryBySearchDao = async (
         ) AS previous_details
       FROM public."ResetDataHistory" rdh
       JOIN public."Payin" p ON rdh.payin_id = p.id
+      LEFT JOIN public."Company" c
+        ON rdh.company_id = c.id
       LEFT JOIN LATERAL (
     SELECT utr, amount
     FROM public."BankResponse" 
     WHERE bank_id = p.bank_acc_id
     ORDER BY created_at DESC  
     LIMIT 1
-) br ON true
+    ) br ON true
     WHERE rdh.is_obsolete = false
-      AND rdh.company_id = $1
     `;
+
+    // Add company_id filter only if present in filters
+    if (company_id) {
+      queryText += ` AND rdh."company_id" = $${paramIndex}`;
+      values.push(company_id);
+      paramIndex++;
+    }
 
     searchTerms.forEach((term) => {
       if (term.toLowerCase() === 'true' || term.toLowerCase() === 'false') {
@@ -185,6 +194,7 @@ const getResetHistoryBySearchDao = async (
             OR LOWER(br.utr) LIKE LOWER($${paramIndex})
             OR LOWER(br.amount::text) LIKE LOWER($${paramIndex})
             OR LOWER(rdh.pre_status) LIKE LOWER($${paramIndex})
+            OR LOWER(c.first_name || ' ' || c.last_name) LIKE LOWER($${paramIndex})
             OR LOWER(rdh.config->>'from_UI') LIKE LOWER($${paramIndex})
           )
         `);

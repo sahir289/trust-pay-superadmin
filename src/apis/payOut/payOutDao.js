@@ -474,11 +474,11 @@ export const getPayoutsBySearchDao = async (
 ) => {
   try {
     // Initialize base conditions for main query
-    const conditions = [`p.is_obsolete = false`, `p.company_id = $1`];
+    const conditions = [`p.is_obsolete = false`];
 
     // Parameters for main query
-    const queryParams = [filters.company_id];
-    let paramIndex = 2; // Start from 2 since $1 is used
+    const queryParams = [];
+    let paramIndex = 1; // Start from 1 since $1 is used
 
     // Columns we allow filtering on
     const handledKeys = new Set(['status', 'updated_at']);
@@ -583,13 +583,23 @@ export const getPayoutsBySearchDao = async (
         p.created_at,
         p.updated_at,
         p.approved_at,
+        c.first_name || ' ' || c.last_name AS company,
         p.rejected_at
       FROM public."Payout" p
       LEFT JOIN public."Merchant" m ON p.merchant_id = m.id
       LEFT JOIN public."BankAccount" b ON p.bank_acc_id = b.id
       LEFT JOIN public."Vendor" v ON p.vendor_id = v.id
+      LEFT JOIN public."Company" c
+        ON p.company_id = c.id
       WHERE ${conditions.join(' AND ')}
     `;
+
+    // Add company_id filter only if present in filters
+    if (filters.company_id) {
+      queryText += ` AND p."company_id" = $${paramIndex}`;
+      queryParams.push(filters.company_id);
+      paramIndex++;
+    }
 
     // Handle status filter
     if (filters.status) {
@@ -633,6 +643,7 @@ export const getPayoutsBySearchDao = async (
               OR p.amount::text LIKE $${paramIndex}
               OR LOWER(p.config->>'method') LIKE LOWER($${paramIndex})
               OR LOWER(p.config->>'rejected_reason') LIKE LOWER($${paramIndex})
+              OR LOWER(c.first_name || ' ' || c.last_name) LIKE LOWER($${paramIndex})
               OR LOWER(p.acc_holder_name) LIKE LOWER($${paramIndex})
               OR LOWER(p.acc_no) LIKE LOWER($${paramIndex})
               OR LOWER(p.ifsc_code) LIKE LOWER($${paramIndex})

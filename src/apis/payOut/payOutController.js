@@ -153,8 +153,8 @@ const getPayouts = async (req, res) => {
   }
 
 const getPayoutsBySearch = async (req, res) => {
-  const { company_id, role, user_id, designation } = req.user;
-  const { search, page = 1, limit = 10 , isAmount } = req.query;
+  const { role, user_id, designation } = req.user;
+  const { search, page = 1, limit = 10 , isAmount, company_id } = req.query;
   // if (!search) {
   //   throw new BadRequestError('search is required');
   // }

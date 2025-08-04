@@ -150,8 +150,8 @@ export const getUsersBySearchDao = async (
 ) => {
   try {
     const conditions = [];
-    const values = [filters.company_id];
-    let paramIndex = 2;
+    const values = [];
+    let paramIndex = 1;
 
     const validatedPageSize = Math.min(
       Math.max(parseInt(pageSize) || 10, 1),
@@ -180,13 +180,22 @@ export const getUsersBySearchDao = async (
         "User".created_at,
         "User".updated_at,
         "User".first_name || ' ' || "User".last_name AS full_name,
+        c.first_name || ' ' || c.last_name AS company,
         "Designation".designation AS Designation 
       FROM "User" 
       LEFT JOIN "Designation" ON "User".designation_id = "Designation".id 
+      LEFT JOIN public."Company" c
+        ON "User".company_id = c.id
       WHERE 1=1 
         AND "User".is_obsolete = false 
-        AND "User"."company_id" = $1
     `;
+
+    // Add company_id filter only if present in filters
+    if (filters.company_id) {
+      queryText += ` AND "User"."company_id" = $${paramIndex}`;
+      values.push(filters.company_id);
+      paramIndex++;
+    }
 
     if (filters.id) {
       if (Array.isArray(filters.id)) {
@@ -225,6 +234,7 @@ export const getUsersBySearchDao = async (
               OR LOWER("User".created_by::text) LIKE LOWER($${paramIndex})
               OR LOWER("User".updated_by::text) LIKE LOWER($${paramIndex})
               OR LOWER("User".first_name || ' ' || "User".last_name) LIKE LOWER($${paramIndex})
+              OR LOWER(c.first_name || ' ' || c.last_name) LIKE LOWER($${paramIndex})
               OR LOWER("Designation".designation) LIKE LOWER($${paramIndex})
             )
           `);
@@ -268,6 +278,7 @@ export const getUsersBySearchDao = async (
     throw error;
   }
 };
+
 const getUserByIdDao = async (conn, ids) => {
   try {
     let baseQuery = `

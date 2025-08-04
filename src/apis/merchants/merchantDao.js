@@ -401,8 +401,8 @@ export const getMerchantsBySearchDao = async (
 ) => {
   try {
     const conditions = [];
-    const values = [filters.company_id];
-    let paramIndex = 2;
+    const values = [];
+    let paramIndex = 1;
 
     // Use filters.limit and filters.page, with fallbacks to pageSize and page
     const limitNum =
@@ -441,6 +441,7 @@ export const getMerchantsBySearchDao = async (
         "Merchant".updated_at, 
         "User".designation_id, 
         "User".first_name || ' ' || "User".last_name AS full_name, 
+        c.first_name || ' ' || c.last_name AS company,
         "Designation".designation AS designation_name,
         (SELECT net_balance 
          FROM "Calculation" 
@@ -452,9 +453,17 @@ export const getMerchantsBySearchDao = async (
       LEFT JOIN "Designation" ON "User".designation_id = "Designation".id
       LEFT JOIN "User" creator ON "Merchant".created_by = creator.id 
       LEFT JOIN "User" updater ON "Merchant".updated_by = updater.id
+      LEFT JOIN public."Company" c
+        ON "Merchant".company_id = c.id
       WHERE "Merchant".is_obsolete = false 
-      AND "Merchant"."company_id" = $1
     `;
+
+    // Add company_id filter only if present in filters
+    if (filters.company_id) {
+      queryText += ` AND "Merchant"."company_id" = $${paramIndex}`;
+      values.push(filters.company_id);
+      paramIndex++;
+    }
 
     // Role-based designation filtering
     if ((role === Role.ADMIN || role === Role.SUPER_ADMIN) && searchTerms.length > 0) {
@@ -521,6 +530,7 @@ export const getMerchantsBySearchDao = async (
               OR LOWER("Merchant".config->'urls'->>'site') LIKE LOWER($${paramIndex})
               OR LOWER("Merchant".config->'urls'->>'return') LIKE LOWER($${paramIndex})
               OR LOWER("Merchant".config->'urls'->>'payin_notify') LIKE LOWER($${paramIndex})
+              OR LOWER(c.first_name || ' ' || c.last_name) LIKE LOWER($${paramIndex})
               OR LOWER("Merchant".config->'urls'->>'payout_notify') LIKE LOWER($${paramIndex})
               OR (
                 SELECT net_balance::text 

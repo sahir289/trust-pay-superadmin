@@ -643,9 +643,9 @@ export const getPayinsBySearchDao = async (
   role,
 ) => {
   try {
-    const conditions = [`p.is_obsolete = false`, `p.company_id = $1`];
-    const queryParams = [filters.company_id];
-    let paramIndex = 2;
+    const conditions = [`p.is_obsolete = false`];
+    const queryParams = [];
+    let paramIndex = 1;
     const handledKeys = new Set(['status']);
     // Valid columns in the Payin table
     const validColumns = new Set([
@@ -736,6 +736,7 @@ export const getPayinsBySearchDao = async (
         ) AS bank_res_details,
         p.created_at,
         p.updated_at,
+        c.first_name || ' ' || c.last_name AS company,
         CASE 
           WHEN p.config::jsonb ? 'history' 
           THEN (
@@ -771,9 +772,19 @@ export const getPayinsBySearchDao = async (
       LEFT JOIN public."BankResponse" br ON p.bank_response_id = br.id
       LEFT JOIN public."Vendor" v ON v.user_id = b.user_id
       LEFT JOIN public."User" u ON p.created_by = u.id 
-      LEFT JOIN public."User" uu ON p.updated_by = uu.id
+      LEFT JOIN public."User" uu ON p.updated_by = uu.id 
+      LEFT JOIN public."Company" c
+        ON p.company_id = c.id
       WHERE ${conditions.join(' AND ')}
     `;
+
+    // Add company_id filter only if present in filters
+    if (filters.company_id) {
+      queryText += ` AND p."company_id" = $${paramIndex}`;
+      queryParams.push(filters.company_id);
+      paramIndex++;
+    }
+
     if (searchTerms && searchTerms.length > 0) {
       // Handle search terms
       searchTerms.forEach((term) => {
@@ -804,6 +815,7 @@ export const getPayinsBySearchDao = async (
               OR LOWER(v.code) LIKE LOWER($${paramIndex})
               OR p.amount::text LIKE $${paramIndex}
               OR br.amount::text LIKE $${paramIndex}
+              OR LOWER(c.first_name || ' ' || c.last_name) LIKE LOWER($${paramIndex})
               OR LOWER(p.config->>'user') LIKE LOWER($${paramIndex})
               OR LOWER(p.config->'urls'->>'site') LIKE LOWER($${paramIndex})
               OR LOWER(p.config->'urls'->>'notify') LIKE LOWER($${paramIndex})

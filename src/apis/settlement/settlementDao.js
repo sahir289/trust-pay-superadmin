@@ -345,15 +345,16 @@ const getSettlementsBySearchDao = async (
               LOWER(ba.acc_no) LIKE LOWER($${paramIndex}) OR
               LOWER(ba.ifsc) LIKE LOWER($${paramIndex}) OR
               s.amount::text LIKE $${paramIndex} OR
-          LOWER(s.config->>'amount') LIKE LOWER($${paramIndex}) OR
-          LOWER(s.config->>'reference_id') LIKE LOWER($${paramIndex}) OR
-          LOWER(s.config->>'debit_credit') LIKE LOWER($${paramIndex}) OR
-          LOWER(s.config->>'ifsc') LIKE LOWER($${paramIndex}) OR
-          LOWER(s.config->>'acc_no') LIKE LOWER($${paramIndex}) OR
-          LOWER(s.config->>'acc_holder_name') LIKE LOWER($${paramIndex}) OR
-          LOWER(s.config->>'bank_name') LIKE LOWER($${paramIndex}) OR
-          LOWER(s.config->>'bank_namebank_name') LIKE LOWER($${paramIndex}) OR
-          LOWER(s.config->>'rejected_reason') LIKE LOWER($${paramIndex})           )`,
+              LOWER(s.config->>'amount') LIKE LOWER($${paramIndex}) OR
+              LOWER(s.config->>'reference_id') LIKE LOWER($${paramIndex}) OR
+              LOWER(s.config->>'debit_credit') LIKE LOWER($${paramIndex}) OR
+              LOWER(s.config->>'ifsc') LIKE LOWER($${paramIndex}) OR
+              LOWER(s.config->>'acc_no') LIKE LOWER($${paramIndex}) OR
+              LOWER(s.config->>'acc_holder_name') LIKE LOWER($${paramIndex}) OR
+              LOWER(s.config->>'bank_name') LIKE LOWER($${paramIndex}) OR
+              LOWER(c.first_name || ' ' || c.last_name) LIKE LOWER($${paramIndex}) OR
+              LOWER(s.config->>'bank_namebank_name') LIKE LOWER($${paramIndex}) OR
+              LOWER(s.config->>'rejected_reason') LIKE LOWER($${paramIndex}))`,
           );
           queryParams.push(`%${term}%`);
           paramIndex++;
@@ -462,6 +463,11 @@ const getSettlementsBySearchDao = async (
         queryParams.push(val);
         paramIndex++;
       },
+      company_id: (val) => {
+        conditions.push(`s.company_id = $${paramIndex}`);
+        queryParams.push(val);
+        paramIndex++;
+      },
       updated_at: (val) => {
         const [day, month, year] = val.split('-');
         const properDateStr = `${year}-${month}-${day}`;
@@ -489,19 +495,22 @@ const getSettlementsBySearchDao = async (
     const baseQuery = `
       SELECT ${columnSelection} ,
        CASE
-    WHEN r.role = 'MERCHANT' THEN COALESCE(m.config->>'sub_code', m.code)
-    WHEN r.role = 'VENDOR' THEN v.code
-    WHEN r.role = 'ADMIN' THEN COALESCE(m.config->>'sub_code', m.code)
-    ELSE NULL
-  END AS code,
-  COALESCE(uc.user_name, s.created_by::text) AS created_by,
-  COALESCE(uu.user_name, s.updated_by::text) AS updated_by
+      WHEN r.role = 'MERCHANT' THEN COALESCE(m.config->>'sub_code', m.code)
+      WHEN r.role = 'VENDOR' THEN v.code
+      WHEN r.role = 'ADMIN' THEN COALESCE(m.config->>'sub_code', m.code)
+      ELSE NULL
+      END AS code,
+      c.first_name || ' ' || c.last_name AS company,
+      COALESCE(uc.user_name, s.created_by::text) AS created_by,
+      COALESCE(uu.user_name, s.updated_by::text) AS updated_by
       FROM "Settlement" s
       JOIN "User" u ON s.user_id = u.id
       LEFT JOIN "Role" r ON u.role_id = r.id
       LEFT JOIN "BeneficiaryAccounts" ba ON s.config->>'bank_id' = ba.id
       LEFT JOIN "Merchant" m ON u.id = m.user_id AND r.role IN ('MERCHANT', 'ADMIN')
       LEFT JOIN "Vendor" v ON u.id = v.user_id AND r.role = 'VENDOR'
+      LEFT JOIN public."Company" c
+        ON s.company_id = c.id
       LEFT JOIN "User" uc ON s.created_by = uc.id
       LEFT JOIN "User" uu ON s.updated_by = uu.id
       WHERE ${conditions.join(' AND ')}

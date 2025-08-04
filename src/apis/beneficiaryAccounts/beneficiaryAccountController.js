@@ -47,8 +47,8 @@ const getBeneficiaryAccount = async (req, res) => {
 };
 
 const getBeneficiaryAccountBySearch = async (req, res) => {
-  const { role, user_id, designation, company_id } = req.user;
-  const { page, limit, beneficiary_role, beneficiary_user_id , search } = req.query;
+  const { role, user_id, designation } = req.user;
+  const { page, limit, beneficiary_role, beneficiary_user_id , search, company_id } = req.query;
   let { is_enabled } = req.query;
   const filters = {
     beneficiary_role,

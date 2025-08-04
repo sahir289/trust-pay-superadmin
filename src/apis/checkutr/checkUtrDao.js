@@ -124,8 +124,8 @@ const getCheckUtrBySearchDao = async (
 ) => {
   try {
     const conditions = [];
-    const values = [company_id];
-    let paramIndex = 2;
+    const values = [];
+    let paramIndex = 1;
     let queryText = `
       SELECT 
         "CheckUtrHistory".*, 
@@ -137,14 +137,22 @@ const getCheckUtrBySearchDao = async (
         "BankResponse".utr, 
         "BankResponse".amount, 
         "BankResponse".is_used, 
+        c.first_name || ' ' || c.last_name AS company,
         "BankResponse".upi_short_code 
       FROM "CheckUtrHistory" 
       JOIN "Payin" ON "CheckUtrHistory".payin_id = "Payin".id 
       LEFT JOIN "BankResponse" ON "Payin".bank_response_id = "BankResponse".id 
+      LEFT JOIN "Company" c ON "CheckUtrHistory".company_id = c.id
       WHERE 1=1 
       AND "CheckUtrHistory".is_obsolete = false 
-      AND "CheckUtrHistory"."company_id" = $1
     `;
+
+    // Add company_id filter only if present in filters
+    if (company_id) {
+      queryText += ` AND "CheckUtrHistory"."company_id" = $${paramIndex}`;
+      values.push(company_id);
+      paramIndex++;
+    }
 
     searchTerms.forEach((term) => {
       // here it will handle boolean terms separately
@@ -168,6 +176,7 @@ const getCheckUtrBySearchDao = async (
             OR LOWER("BankResponse".status) LIKE LOWER($${paramIndex})
             OR LOWER("BankResponse".utr) LIKE LOWER($${paramIndex})
             OR LOWER("BankResponse".upi_short_code) LIKE LOWER($${paramIndex})
+            OR LOWER(c.first_name || ' ' || c.last_name) LIKE LOWER($${paramIndex})
             OR "Payin".amount::text LIKE $${paramIndex}
             OR "BankResponse".amount::text LIKE $${paramIndex}
           )

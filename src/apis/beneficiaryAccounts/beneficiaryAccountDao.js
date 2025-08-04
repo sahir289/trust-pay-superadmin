@@ -266,6 +266,7 @@ const getBeneficiaryAccountBySearchDao = async (
             OR LOWER(bea.acc_holder_name) LIKE LOWER($${paramIndex})
             OR LOWER(bea.acc_no) LIKE LOWER($${paramIndex})
             OR LOWER(bea.bank_name) LIKE LOWER($${paramIndex})
+            OR LOWER(c.first_name || ' ' || c.last_name) LIKE LOWER($${paramIndex})
             OR LOWER(v.code::text) LIKE LOWER($${paramIndex})
             OR LOWER(m.code::text) LIKE LOWER($${paramIndex})
             ${
@@ -302,12 +303,15 @@ const getBeneficiaryAccountBySearchDao = async (
         bea.bank_name,
         ${commissionSelect ? `${commissionSelect},` : ''}
         v.code AS vendors,
+        c.first_name || ' ' || c.last_name AS company,
         m.code AS merchant
       FROM public."BeneficiaryAccounts" bea
       LEFT JOIN public."Vendor" v ON bea.user_id = v.user_id
       LEFT JOIN public."Merchant" m ON bea.user_id = m.user_id
       LEFT JOIN public."User" creator ON bea.created_by = creator.id
       LEFT JOIN public."User" updater ON bea.updated_by = updater.id
+      LEFT JOIN public."Company" c
+        ON bea.company_id = c.id
       WHERE ${conditions.join(' AND ')}
       ${searchConditions.length > 0 ? ` AND (${searchConditions.join(' OR ')})` : ''}
       ORDER BY bea.updated_at DESC
@@ -323,6 +327,8 @@ const getBeneficiaryAccountBySearchDao = async (
       LEFT JOIN public."Merchant" m ON bea.user_id = m.user_id
       LEFT JOIN public."User" creator ON bea.created_by = creator.id
       LEFT JOIN public."User" updater ON bea.updated_by = updater.id
+      LEFT JOIN public."Company" c
+        ON bea.company_id = c.id
       WHERE ${conditions.join(' AND ')}
       ${searchConditions.length > 0 ? ` AND (${searchConditions.join(' OR ')})` : ''}`;
 

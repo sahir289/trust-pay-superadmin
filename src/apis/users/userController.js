@@ -33,8 +33,8 @@ const getUsers = async (req, res) => {
 };
 
 const getUsersBySearch = async (req, res) => {
-  const { role, company_id, user_id, designation } = req.user;
-  const { page, limit } = req.query;
+  const { role, user_id, designation } = req.user;
+  const { page, limit, company_id } = req.query;
   const data = await getUsersBySearchService(
     {
       company_id,

@@ -71,8 +71,8 @@ const getSettlementController = async (req, res) => {
 };
 
 const getSettlementsBySearch = async (req, res) => {
-  const { company_id, user_id, role, designation } = req.user || {};
-  const { role_name, page, limit, search, sortBy, sortOrder, ...filters } =
+  const { user_id, role, designation } = req.user || {};
+  const { role_name, page, limit, search, sortBy, sortOrder, company_id, ...filters } =
     req.query;
 
   const parsedPage = page === 'no_pagination' ? null : Number(page) || 1;
@@ -82,6 +82,7 @@ const getSettlementsBySearch = async (req, res) => {
   const filterParams = {
     ...(search && { search }),
     ...(role_name && { role: role_name }),
+    ...(company_id && {company_id: company_id}),
     ...filters,
   };
 
@@ -90,7 +91,7 @@ const getSettlementsBySearch = async (req, res) => {
   const limitNum = parseInt(parsedLimit, 10);
   // Call service with structured parameters
   const settlementData = await getSettlementsBySearchService(
-    { company_id, role_name },
+    { role_name },
     filterParams,
     pageNum,
     limitNum,

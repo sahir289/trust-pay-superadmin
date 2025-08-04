@@ -439,8 +439,8 @@ export const getPayins = async (req, res) => {
 };
 
 export const getPayinsBySearch = async (req, res) => {
-  const { company_id, role, user_id, designation } = req.user;
-  const { search, page = 1, limit = 10 } = req.query;
+  const { role, user_id, designation } = req.user;
+  const { search, page = 1, limit = 10, company_id } = req.query;
   // if (!search) {
   //   throw new BadRequestError('search is required');
   // }
