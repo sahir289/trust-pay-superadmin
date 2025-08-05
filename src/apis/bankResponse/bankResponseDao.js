@@ -150,6 +150,7 @@ const getBankResponseBySearchDao = async (
     const baseQuery = `
       SELECT ${selectCols}, 
              "BankResponse".created_at,
+             "BankResponse".company_id,
              "BankAccount".config AS details,
              "BankAccount".nick_name,
              "Vendor".user_id AS vendor_user_id,
