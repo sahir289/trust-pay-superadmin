@@ -780,9 +780,20 @@ export const getPayinsBySearchDao = async (
 
     // Add company_id filter only if present in filters
     if (filters.company_id) {
-      queryText += ` AND p."company_id" = $${paramIndex}`;
-      queryParams.push(filters.company_id);
-      paramIndex++;
+      if (typeof filters.company_id === 'string' && filters.company_id.includes(',')) {
+        const arr = filters.company_id.split(',').map(v => v.trim()).filter(Boolean);
+        queryText += ` AND p."company_id" = ANY($${paramIndex})`;
+        queryParams.push(arr);
+        paramIndex++;
+      } else if (Array.isArray(filters.company_id)) {
+        queryText += ` AND p."company_id" = ANY($${paramIndex})`;
+        queryParams.push(filters.company_id);
+        paramIndex++;
+      } else {
+        queryText += ` AND p."company_id" = $${paramIndex}`;
+        queryParams.push(filters.company_id);
+        paramIndex++;
+      }
     }
 
     if (searchTerms && searchTerms.length > 0) {

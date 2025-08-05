@@ -237,8 +237,18 @@ const getBankResponseBySearchDao = async (
       paramIndex++;
     }
     if (filters.company_id) {
-      whereConditions.push(`"BankResponse"."company_id" = $${paramIndex}`);
-      values.push(filters.company_id);
+      // Support comma-separated string or array for company_id
+      let companyIds = filters.company_id;
+      if (typeof companyIds === 'string' && companyIds.includes(',')) {
+        companyIds = companyIds.split(',').map(id => id.trim()).filter(Boolean);
+      }
+      if (Array.isArray(companyIds)) {
+        whereConditions.push(`"BankResponse"."company_id" = ANY($${paramIndex})`);
+        values.push(companyIds);
+      } else {
+        whereConditions.push(`"BankResponse"."company_id" = $${paramIndex}`);
+        values.push(companyIds);
+      }
       paramIndex++;
     }
     if (filters.updated_by) {

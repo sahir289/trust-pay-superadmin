@@ -300,11 +300,24 @@ export const getVendorsBySearchDao = async (
       WHERE "Vendor".is_obsolete = false
     `;
 
-    // Add company_id filter only if present in filters
+    // Add company_id filter only if present in filters, support comma-separated string or array
     if (filters.company_id) {
-      queryText += ` AND "Vendor"."company_id" = $${paramIndex}`;
-      values.push(filters.company_id);
-      paramIndex++;
+      let companyIds = filters.company_id;
+      if (typeof companyIds === 'string' && companyIds.includes(',')) {
+        companyIds = companyIds.split(',').map((v) => v.trim()).filter(Boolean);
+      }
+      if (Array.isArray(companyIds)) {
+        if (companyIds.length > 0) {
+          const placeholders = companyIds.map((_, idx) => `$${paramIndex + idx}`).join(', ');
+          queryText += ` AND "Vendor"."company_id" IN (${placeholders})`;
+          values.push(...companyIds);
+          paramIndex += companyIds.length;
+        }
+      } else {
+        queryText += ` AND "Vendor"."company_id" = $${paramIndex}`;
+        values.push(companyIds);
+        paramIndex++;
+      }
     }
 
     if (filters.user_id) {

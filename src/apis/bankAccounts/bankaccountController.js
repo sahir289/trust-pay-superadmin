@@ -48,7 +48,12 @@ const getBankAccountBySearch = async (req, res) => {
     bank_used_for,
   };
   if (company_id) {
-    filters.company_id = company_id;
+    // Support comma-separated string or array for company_id
+    if (typeof company_id === 'string' && company_id.includes(',')) {
+      filters.company_id = company_id.split(',').map(id => id.trim()).filter(Boolean);
+    } else {
+      filters.company_id = company_id;
+    }
   }
   const data = await getBankAccountBySearchService(
     filters,

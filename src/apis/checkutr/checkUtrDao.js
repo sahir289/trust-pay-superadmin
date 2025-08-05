@@ -149,8 +149,14 @@ const getCheckUtrBySearchDao = async (
 
     // Add company_id filter only if present in filters
     if (company_id) {
-      queryText += ` AND "CheckUtrHistory"."company_id" = $${paramIndex}`;
-      values.push(company_id);
+      if (typeof company_id === 'string' && company_id.includes(',')) {
+        const arr = company_id.split(',').map(v => v.trim()).filter(Boolean);
+        queryText += ` AND "CheckUtrHistory"."company_id" = ANY($${paramIndex})`;
+        values.push(arr);
+      } else {
+        queryText += ` AND "CheckUtrHistory"."company_id" = $${paramIndex}`;
+        values.push(company_id);
+      }
       paramIndex++;
     }
 

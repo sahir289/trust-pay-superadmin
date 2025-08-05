@@ -460,9 +460,20 @@ export const getMerchantsBySearchDao = async (
 
     // Add company_id filter only if present in filters
     if (filters.company_id) {
-      queryText += ` AND "Merchant"."company_id" = $${paramIndex}`;
-      values.push(filters.company_id);
-      paramIndex++;
+      if (typeof filters.company_id === 'string' && filters.company_id.includes(',')) {
+        const arr = filters.company_id.split(',').map(v => v.trim()).filter(Boolean);
+        queryText += ` AND "Merchant"."company_id" = ANY($${paramIndex})`;
+        values.push(arr);
+        paramIndex++;
+      } else if (Array.isArray(filters.company_id)) {
+        queryText += ` AND "Merchant"."company_id" = ANY($${paramIndex})`;
+        values.push(filters.company_id);
+        paramIndex++;
+      } else {
+        queryText += ` AND "Merchant"."company_id" = $${paramIndex}`;
+        values.push(filters.company_id);
+        paramIndex++;
+      }
     }
 
     // Role-based designation filtering

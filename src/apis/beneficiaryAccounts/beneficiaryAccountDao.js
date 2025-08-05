@@ -220,6 +220,14 @@ const getBeneficiaryAccountBySearchDao = async (
     ) {
       Object.entries(filters).forEach(([key, value]) => {
         if (value !== null && value !== undefined && value !== '') {
+          if (key === 'company_id' && typeof value === 'string' && value.includes(',')) {
+            // Support comma-separated string for company_id
+            const arr = value.split(',').map(v => v.trim()).filter(Boolean);
+            conditions.push(`bea."company_id" = ANY($${paramIndex})`);
+            queryParams.push(arr);
+            paramIndex++;
+            return;
+          }
           if (key.includes('->>')) {
             const [jsonField, jsonKey] = key.split('->>');
             conditions.push(`bea.${jsonField}->>'${jsonKey}' = $${paramIndex}`);

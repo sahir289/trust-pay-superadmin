@@ -464,9 +464,22 @@ const getSettlementsBySearchDao = async (
         paramIndex++;
       },
       company_id: (val) => {
-        conditions.push(`s.company_id = $${paramIndex}`);
-        queryParams.push(val);
-        paramIndex++;
+        let companyIds = val;
+        if (typeof companyIds === 'string' && companyIds.includes(',')) {
+          companyIds = companyIds.split(',').map((v) => v.trim()).filter(Boolean);
+        }
+        if (Array.isArray(companyIds)) {
+          if (companyIds.length > 0) {
+            const placeholders = companyIds.map((_, i) => `$${paramIndex + i}`).join(',');
+            conditions.push(`s.company_id IN (${placeholders})`);
+            queryParams.push(...companyIds);
+            paramIndex += companyIds.length;
+          }
+        } else {
+          conditions.push(`s.company_id = $${paramIndex}`);
+          queryParams.push(companyIds);
+          paramIndex++;
+        }
       },
       updated_at: (val) => {
         const [day, month, year] = val.split('-');

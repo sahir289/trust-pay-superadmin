@@ -169,9 +169,20 @@ const getResetHistoryBySearchDao = async (
 
     // Add company_id filter only if present in filters
     if (company_id) {
-      queryText += ` AND rdh."company_id" = $${paramIndex}`;
-      values.push(company_id);
-      paramIndex++;
+      if (typeof company_id === 'string' && company_id.includes(',')) {
+        const arr = company_id.split(',').map(v => v.trim()).filter(Boolean);
+        queryText += ` AND rdh."company_id" = ANY($${paramIndex})`;
+        values.push(arr);
+        paramIndex++;
+      } else if (Array.isArray(company_id)) {
+        queryText += ` AND rdh."company_id" = ANY($${paramIndex})`;
+        values.push(company_id);
+        paramIndex++;
+      } else {
+        queryText += ` AND rdh."company_id" = $${paramIndex}`;
+        values.push(company_id);
+        paramIndex++;
+      }
     }
 
     searchTerms.forEach((term) => {
