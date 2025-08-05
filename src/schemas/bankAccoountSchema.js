@@ -25,6 +25,7 @@ export const BANK_ACCOUNT_SCHEMA = Joi.object({
   today_balance: Joi.number().label('today_balance').optional(),
   bank_used_for: Joi.string().label('bank_used_for').optional(),
   config: Joi.object().label('config').optional(),
+  company_id: Joi.string().label('company_id').optional(),
 });
 
 export const UPDATE_BANK_ACCOUNT_SCHEMA = Joi.object({

@@ -129,8 +129,6 @@ const getAllBankaccountDao = async (
   filters,
   page,
   limit,
-  role,
-  designation,
 ) => {
   try {
     let queryParams = [];
@@ -187,8 +185,17 @@ const getAllBankaccountDao = async (
         }
       });
     }
-    let commissionSelect = `
+    const baseQuery = `SELECT 
+        ba.id, 
+        ba.sno, 
+        ba.upi_id,
+        ba.acc_holder_name,
+        ba.upi_params, 
+        ba.nick_name, 
+        ba.acc_no, 
+        ba.bank_name, 
         ba.user_id, 
+        ba.company_id,
         ba.ifsc, 
         ba.min, 
         ba.max, 
@@ -201,19 +208,9 @@ const getAllBankaccountDao = async (
         ba.bank_used_for, 
         creator.user_name AS created_by, 
         updater.user_name AS updated_by, 
-        ${designation === Role.SUPER_ADMIN ? `COALESCE(m.merchant_details, '[]'::jsonb) AS Merchant_Details, ba.config,` : ''}
+        COALESCE(m.merchant_details, '[]'::jsonb) AS Merchant_Details, ba.config,
         ba.created_at, 
-        ba.updated_at`;
-    const baseQuery = `SELECT 
-        ba.id, 
-        ba.sno, 
-        ba.upi_id,
-        ba.acc_holder_name,
-        ba.upi_params, 
-        ba.nick_name, 
-        ba.acc_no, 
-        ba.bank_name, 
-        ${commissionSelect ? `${commissionSelect},` : ''}
+        ba.updated_at,
         v.code AS Vendor,
         c.first_name || ' ' || c.last_name AS company
       FROM 
@@ -253,8 +250,6 @@ const getBankAccountsBySearchDao = async (
   filters,
   page,
   limit,
-  role,
-  designation,
   searchTerms = [],
 ) => {
   try {
@@ -359,25 +354,6 @@ const getBankAccountsBySearchDao = async (
       paramIndex += 2;
     }
 
-    // Role-based select fields
-    let commissionSelect = `
-        ba.user_id, 
-        ba.ifsc, 
-        ba.min, 
-        ba.max, 
-        ba.payin_count, 
-        ba.balance, 
-        ba.is_qr, 
-        ba.is_bank, 
-        ba.is_enabled, 
-        ba.today_balance, 
-        ba.bank_used_for, 
-        creator.user_name AS created_by, 
-        updater.user_name AS updated_by, 
-        ${designation === Role.SUPER_ADMIN ? `COALESCE(m.merchant_details, '[]'::jsonb) AS Merchant_Details, ba.config,` : ''}
-        ba.created_at, 
-        ba.updated_at`;
-
     // Base query
     const baseQuery = `
       SELECT 
@@ -390,7 +366,23 @@ const getBankAccountsBySearchDao = async (
         ba.acc_no, 
         ba.bank_name, 
         ba.is_obsolete,
-        ${commissionSelect ? `${commissionSelect},` : ''}
+        ba.user_id, 
+        ba.company_id,
+        ba.ifsc, 
+        ba.min, 
+        ba.max, 
+        ba.payin_count, 
+        ba.balance, 
+        ba.is_qr, 
+        ba.is_bank, 
+        ba.is_enabled, 
+        ba.today_balance, 
+        ba.bank_used_for, 
+        creator.user_name AS created_by, 
+        updater.user_name AS updated_by, 
+        COALESCE(m.merchant_details, '[]'::jsonb) AS Merchant_Details, ba.config,
+        ba.created_at, 
+        ba.updated_at,
         v.code AS Vendor,
         c.first_name || ' ' || c.last_name AS company
       FROM 

@@ -54,8 +54,6 @@ const getBankaccountService = async (
       { company_id, ...filters },
       pageNumber,
       pageSize,
-      role,
-      designation,
     );
   } catch (error) {
     logger.error('error getting while  getting banks', error);
@@ -97,8 +95,6 @@ const getBankAccountBySearchService = async (
       { ...filters },
       pageNumber,
       pageSize,
-      role,
-      designation,
       searchTerms,
     );
     return banks;

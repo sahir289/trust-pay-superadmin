@@ -109,8 +109,8 @@ const getMerchantsBySearch = async (req, res) => {
 };
 
 const getMerchantCodes = async (req, res) => {
-  const { company_id, role, user_id, designation } = req.user;
-  const { includeSubMerchants, includeOnlyMerchants } = req.query;
+  const { role, user_id, designation } = req.user;
+  const { includeSubMerchants, includeOnlyMerchants, company_id } = req.query;
   const filters = { company_id };
   const data = await getMerchantsServiceCode(
     filters,

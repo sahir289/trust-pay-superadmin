@@ -25,7 +25,7 @@ export const createVendorDao = async (data, conn) => {
 
 export const getVendorsCodeDao = async (filters, conn) => {
   try {
-    const baseQuery = `
+    let sql = `
         SELECT 
             code AS label, 
             user_id AS value, 
@@ -35,11 +35,12 @@ export const getVendorsCodeDao = async (filters, conn) => {
         WHERE 
             is_obsolete = FALSE 
     `;
-    let [sql, queryParams] = buildSelectQuery(
-      baseQuery,
-      filters,
-      tableName.VENDOR,
-    );
+    const queryParams = [];
+    let paramIndex = 1;
+    if (filters.company_id) {
+      sql += ` AND "Vendor".company_id = $${paramIndex++}`;
+      queryParams.push(filters.company_id);
+    }
     sql = sql.replace(/\s*ORDER BY\s+.*$/i, '') + ' ORDER BY "code" ASC';
     const result = await conn.query(sql, queryParams);
     logger.log('Fetched Vendors:', result.rows.length, 'rows');

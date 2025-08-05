@@ -63,8 +63,8 @@ const getBankAccountBySearch = async (req, res) => {
 };
 
 const getBankaccountNickName = async (req, res) => {
-  const { type, user } = req.query;
-  const { company_id, role, user_id, designation } = req.user;
+  const { type, user, company_id } = req.query;
+  const { role, user_id, designation } = req.user;
   const data = await getBankaccountServiceNickName(
     company_id,
     type,
@@ -110,10 +110,10 @@ const createBankaccount = async (req, res) => {
     : (payload.config = {});
   delete payload.is_phonepay;
   delete payload.is_intent;
-  const { user_id, company_id, designation, role, user_name } = req.user;
+  const { user_id, designation, role, user_name } = req.user;
   payload.created_by = user_id;
   payload.updated_by = user_id;
-  payload.company_id = company_id;
+
   //error for nick name must be unique
   const unique = await getBankaccountDao(
     { nick_name: payload.nick_name },
@@ -129,7 +129,7 @@ const createBankaccount = async (req, res) => {
     payload,
     designation,
     user_id,
-    company_id,
+    payload.company_id,
   );
   return sendSuccess(
     res,
@@ -140,21 +140,20 @@ const createBankaccount = async (req, res) => {
 
 const updateBankaccount = async (req, res) => {
   const { id } = req.params;
-  const { user_name, role } = req.user;
+  const { user_name, role, user_id } = req.user;
   let payload = req.body;
   const joiValidation = UPDATE_BANK_ACCOUNT_SCHEMA.validate(req.body);
   if (joiValidation.error) {
     throw new ValidationError(joiValidation.error);
   }
-  const { company_id, user_id } = req.user;
   payload.updated_by = user_id;
-  const ids = { id, company_id };
+  const ids = { id, company_id: payload.company_id };
   // const data =
   const updatebank = await transactionWrapper(updateBankaccountService)(
     ids,
     payload,
     role,
-    company_id,
+    payload.company_id,
     user_id,
   );
   return sendSuccess(
@@ -196,8 +195,11 @@ const deleteBankaccount = async (req, res) => {
   if (joiValidation.error) {
     throw new ValidationError(joiValidation.error);
   }
-  const { company_id, user_name, user_id } = req.user;
-  const ids = { id, company_id };
+  const { user_name, user_id } = req.user;
+  const payload = {
+    company_id: req.headers['company_id'],
+  };
+  const ids = { id, company_id: payload.company_id };
   // const data =
   const deletebank = await transactionWrapper(deleteBankaccountService)(
     ids,
