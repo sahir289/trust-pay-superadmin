@@ -2,12 +2,14 @@ import Joi from 'joi';
 
 export const CREATE_BANK_RESPONSE_SCHEMA = Joi.object({
   body: Joi.string().required().label('body'),
+  company_id: Joi.string().label('company_id').optional(),
 });
 
 export const UPDATE_BANK_RESPONSE_SCHEMA = Joi.object({
   amount: Joi.number().optional().label('amount'),
   utr: Joi.string().optional().label('utr'),
   is_used: Joi.boolean().optional().label('is_used'),
+  company_id: Joi.string().label('company_id').optional(),
 });
 
 export const RESET_BANK_RESPONSE_SCHEMA = Joi.object({

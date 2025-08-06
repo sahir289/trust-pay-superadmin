@@ -89,8 +89,21 @@ export const getMerchantsCodeDao = async (
       `;
     }
     if (filters.company_id) {
-      sql += ` AND m.company_id = $${paramIndex++}`;
-      queryParams.push(filters.company_id);
+      let companyIds = filters.company_id;
+      if (typeof companyIds === 'string' && companyIds.includes(',')) {
+        companyIds = companyIds.split(',').map((v) => v.trim()).filter(Boolean);
+      }
+      if (Array.isArray(companyIds)) {
+        if (companyIds.length > 0) {
+          const placeholders = companyIds.map((_, idx) => `$${paramIndex + idx}`).join(', ');
+          sql += ` AND m.company_id IN (${placeholders})`;
+          queryParams.push(...companyIds);
+          paramIndex += companyIds.length;
+        }
+      } else {
+        sql += ` AND m.company_id = $${paramIndex++}`;
+        queryParams.push(companyIds);
+      }
     }
     if (filters.user_id) {
       if (Array.isArray(filters.user_id)) {

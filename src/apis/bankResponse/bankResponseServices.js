@@ -73,7 +73,10 @@ const createBankResponseService = async (
     const upi_short_code = splitData.length > 1 ? splitData[1] : '';
     const utr = splitData[2];
     const bank_id = splitData[3];
-    const from_UI = splitData[4];
+    const company_id = splitData[4] || companyId;
+    const from_UI = splitData[5];
+    const created_by = name || 'Bank Response';
+    const updated_by = name || 'Bank Response';
     let vendor;
 
     // Early validation
@@ -100,10 +103,6 @@ const createBankResponseService = async (
     if (!validateUTR(utr, from_UI)) {
       return { message: 'UTRs can only contain alphanumeric characters.' };
     }
-
-    const created_by = name || 'Bank Response';
-    const updated_by = name || 'Bank Response';
-    const company_id = companyId;
     const isValidAmountCode = !!(
       upi_short_code &&
       upi_short_code !== 'nil' &&
@@ -223,7 +222,7 @@ const createBankResponseService = async (
         const bankDetails = await getBankaccountDao(
           {
             id: botRes?.bank_id,
-            company_id: companyId,
+            company_id: company_id,
           },
           null,
           null,
@@ -249,10 +248,10 @@ const createBankResponseService = async (
         );
         await updateBankaccountService(
           localConn,
-          { id: botRes?.bank_id, company_id: companyId },
+          { id: botRes?.bank_id, company_id: company_id },
           { latest_balance: res.today_balance },
           role,
-          companyId,
+          company_id,
           bankDetails[0].user_id,
         );
         vendor = await getVendorsDao({

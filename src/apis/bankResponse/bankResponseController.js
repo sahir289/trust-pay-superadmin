@@ -88,7 +88,7 @@ const getBankResponseBySearch = async (req, res) => {
 };
 
 const createBankResponse = async (req, res) => {
-  const { role, user_name, company_id, user_id } = req.user;
+  const { role, user_name, user_id } = req.user;
   const payload = req.body?.body;
   const { error } = CREATE_BANK_RESPONSE_SCHEMA.validate(req.body);
   if (error) {
@@ -96,7 +96,6 @@ const createBankResponse = async (req, res) => {
   }
   const result = await createBankResponseService(
     payload,
-    company_id,
     role,
     user_name,
     user_id,
@@ -133,9 +132,8 @@ const updateBankResponse = async (req, res) => {
     throw new ValidationError(bodyError);
   }
   const payload = req.body;
-  const { company_id } = req.user;
   const { id } = req.params;
-  const ids = { id, company_id };
+  const ids = { id, company_id: payload.company_id };
   const updateResponse = await updateBankResponseService(ids, payload, role);
   return sendSuccess(
     res,

@@ -714,6 +714,8 @@ export const getPayinsBySearchDao = async (
         p.created_by,
         p.is_notified,
         p.user,
+        p.company_id,
+        p.bank_acc_id,
         p.updated_by,
         p.created_at,
         p.updated_at`;

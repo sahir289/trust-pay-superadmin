@@ -38,8 +38,21 @@ export const getVendorsCodeDao = async (filters, conn) => {
     const queryParams = [];
     let paramIndex = 1;
     if (filters.company_id) {
-      sql += ` AND "Vendor".company_id = $${paramIndex++}`;
-      queryParams.push(filters.company_id);
+      let companyIds = filters.company_id;
+      if (typeof companyIds === 'string' && companyIds.includes(',')) {
+        companyIds = companyIds.split(',').map((v) => v.trim()).filter(Boolean);
+      }
+      if (Array.isArray(companyIds)) {
+        if (companyIds.length > 0) {
+          const placeholders = companyIds.map((_, idx) => `$${paramIndex + idx}`).join(', ');
+          sql += ` AND "Vendor".company_id IN (${placeholders})`;
+          queryParams.push(...companyIds);
+          paramIndex += companyIds.length;
+        }
+      } else {
+        sql += ` AND "Vendor".company_id = $${paramIndex++}`;
+        queryParams.push(companyIds);
+      }
     }
     sql = sql.replace(/\s*ORDER BY\s+.*$/i, '') + ' ORDER BY "code" ASC';
     const result = await conn.query(sql, queryParams);

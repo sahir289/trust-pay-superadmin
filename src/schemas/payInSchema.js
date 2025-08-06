@@ -139,4 +139,5 @@ export const VALIDATE_UPDATE_PAYIN_SCHEMA = Joi.object({
   amount: Joi.number().positive().label('amount').optional(),
   utr: Joi.string().label('utr').optional(),
   bank_acc_id: Joi.string().label('bank_id').optional(),
+  company_id: Joi.string().label('company_id').optional(),
 });
