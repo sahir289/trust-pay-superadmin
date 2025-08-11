@@ -770,6 +770,9 @@ export const AccessRoles = {
     Role.VENDOR,
     Role.VENDOR_OPERATIONS,
   ],
+  SUPER_ADMIN_BOARD: [
+    Role.SUPER_ADMIN
+  ]
 };
 export const COUNTRIES = [
   'India',

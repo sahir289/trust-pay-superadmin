@@ -24,6 +24,7 @@ import resetHistory from './resetHistory/index.js';
 import checkUtr from './checkutr/index.js';
 import common from './common/index.js';
 import beneficiaryAccounts from './beneficiaryAccounts/index.js';
+import superAdmin from './superAdmin/index.js';
 // import notifications from './notifications/index.js';
 
 const parentRouter = express.Router();
@@ -50,6 +51,7 @@ router.use('/reports', reports);
 router.use('/checkUtr', checkUtr);
 router.use('/resetHistory', resetHistory);
 router.use('/beneficiaryAccounts', beneficiaryAccounts);
+router.use('/superAdmin', superAdmin);
 // Public routes (no authorization required)
 router.use('/ping', ping);
 router.use('/auth', auth);
