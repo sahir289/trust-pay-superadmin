@@ -56,10 +56,24 @@ const getPayInMerchantReportDao = async (
         LEFT JOIN public."BankAccount" b ON pi.bank_acc_id = b.id
         LEFT JOIN public."Vendor" v ON v.user_id = b.user_id
         LEFT JOIN public."BankResponse" br ON pi.bank_response_id = br.id
-        WHERE pi.company_id = $1 AND pi.is_obsolete = false`;
+        WHERE pi.is_obsolete = false`;
 
-    let parameters = [company_id];
+    let parameters = [];
     let paramIndex = parameters.length + 1;
+
+    if (company_id) {
+      // Parse company_id - handle both single values and comma-separated arrays
+      let companyIds = company_id;
+      if (typeof company_id === 'string' && company_id.includes(',')) {
+        companyIds = company_id.split(',').map(id => id.trim()).filter(id => id);
+      } else if (!Array.isArray(company_id)) {
+        companyIds = [company_id];
+      }
+      
+      query += ` AND pi.company_id = ANY($${paramIndex})`;
+      parameters.push(companyIds);
+      paramIndex++;
+    }
 
     if (merchant_id) {
       query += ` AND pi.merchant_id = ANY($${paramIndex})`;
@@ -163,10 +177,24 @@ const getPayInVendorReportDao = async (
         LEFT JOIN public."BankAccount" b ON pi.bank_acc_id = b.id
         LEFT JOIN public."BankResponse" br ON pi.bank_response_id = br.id
         LEFT JOIN public."Vendor" v ON v.user_id = b.user_id
-        WHERE pi.company_id = $1 AND pi.is_obsolete = false`;
+        WHERE pi.is_obsolete = false`;
 
-    let parameters = [company_id];
+    let parameters = [];
     let paramIndex = parameters.length + 1;
+
+    if (company_id) {
+      // Parse company_id - handle both single values and comma-separated arrays
+      let companyIds = company_id;
+      if (typeof company_id === 'string' && company_id.includes(',')) {
+        companyIds = company_id.split(',').map(id => id.trim()).filter(id => id);
+      } else if (!Array.isArray(company_id)) {
+        companyIds = [company_id];
+      }
+      
+      query += ` AND pi.company_id = ANY($${paramIndex})`;
+      parameters.push(companyIds);
+      paramIndex++;
+    }
 
     if (id && id.length > 0) {
       query += ` AND pi.bank_acc_id = ANY($${paramIndex})`;
@@ -271,10 +299,24 @@ const getPayOutMerchantReportDao = async (
         LEFT JOIN public."Merchant" me ON po.merchant_id = me.id
         LEFT JOIN public."BankAccount" b ON po.bank_acc_id = b.id
         LEFT JOIN public."Vendor" ve ON ve.user_id = b.user_id
-        WHERE po.company_id = $1  AND po.is_obsolete = false`;
+        WHERE po.is_obsolete = false`;
 
-    let parameters = [company_id];
+    let parameters = [];
     let paramIndex = parameters.length + 1;
+
+    if (company_id) {
+      // Parse company_id - handle both single values and comma-separated arrays
+      let companyIds = company_id;
+      if (typeof company_id === 'string' && company_id.includes(',')) {
+        companyIds = company_id.split(',').map(id => id.trim()).filter(id => id);
+      } else if (!Array.isArray(company_id)) {
+        companyIds = [company_id];
+      }
+      
+      query += ` AND po.company_id = ANY($${paramIndex})`;
+      parameters.push(companyIds);
+      paramIndex++;
+    }
 
     if (merchant_id) {
       query += ` AND po.merchant_id =  ANY($${paramIndex})`;
@@ -395,10 +437,24 @@ const getPayOutVendorReportDao = async (
       LEFT JOIN public."Merchant" me ON po.merchant_id = me.id
       LEFT JOIN public."BankAccount" b ON po.bank_acc_id = b.id
       LEFT JOIN public."Vendor" ve ON ve.user_id = b.user_id
-      WHERE po.company_id = $1 AND po.is_obsolete = false`;
+      WHERE po.is_obsolete = false`;
 
-    let parameters = [company_id];
+    let parameters = [];
     let paramIndex = parameters.length + 1;
+
+    if (company_id) {
+      // Parse company_id - handle both single values and comma-separated arrays
+      let companyIds = company_id;
+      if (typeof company_id === 'string' && company_id.includes(',')) {
+        companyIds = company_id.split(',').map(id => id.trim()).filter(id => id);
+      } else if (!Array.isArray(company_id)) {
+        companyIds = [company_id];
+      }
+      
+      query += ` AND po.company_id = ANY($${paramIndex})`;
+      parameters.push(companyIds);
+      paramIndex++;
+    }
 
     if (id) {
       const vendorIds = Array.isArray(id) ? id : [id];
@@ -539,11 +595,25 @@ const getMerchantReportDao = async (
         ${role === Role.ADMIN || role === Role.SUPER_ADMIN ? ', m.user_id AS merchant_user_id' : ''}
       FROM public."Calculation" c
       LEFT JOIN public."Merchant" m ON c.user_id = m.user_id
-      WHERE c.company_id = $1 AND c.is_obsolete = false
+      WHERE c.is_obsolete = false
     `;
 
-    let parameters = [company_id];
+    let parameters = [];
     let paramIndex = parameters.length + 1;
+
+    if (company_id) {
+      // Parse company_id - handle both single values and comma-separated arrays
+      let companyIds = company_id;
+      if (typeof company_id === 'string' && company_id.includes(',')) {
+        companyIds = company_id.split(',').map(id => id.trim()).filter(id => id);
+      } else if (!Array.isArray(company_id)) {
+        companyIds = [company_id];
+      }
+      
+      query += ` AND c.company_id = ANY($${paramIndex})`;
+      parameters.push(companyIds);
+      paramIndex++;
+    }
     if (userIds) {
       query += ` AND c.user_id = ANY($${paramIndex})`;
       parameters.push(userIds);
@@ -613,10 +683,24 @@ const getVendorReportDao = async (
     ${role === Role.ADMIN || role === Role.SUPER_ADMIN ? ', v.user_id AS vendor_user_id' : ''}
     FROM public."Calculation" c
     LEFT JOIN public."Vendor" v ON c.user_id = v.user_id
-    WHERE c.company_id = $1 AND c.is_obsolete = false`;
+    WHERE c.is_obsolete = false`;
 
-    let parameters = [company_id];
+    let parameters = [];
     let paramIndex = parameters.length + 1;
+
+    if (company_id) {
+      // Parse company_id - handle both single values and comma-separated arrays
+      let companyIds = company_id;
+      if (typeof company_id === 'string' && company_id.includes(',')) {
+        companyIds = company_id.split(',').map(id => id.trim()).filter(id => id);
+      } else if (!Array.isArray(company_id)) {
+        companyIds = [company_id];
+      }
+      
+      query += ` AND c.company_id = ANY($${paramIndex})`;
+      parameters.push(companyIds);
+      paramIndex++;
+    }
 
     if (userIds) {
       query += ` AND c.user_id = ANY($${paramIndex})`;

@@ -142,8 +142,8 @@ const getChargeBacksBySearch = async (req, res) => {
   return sendSuccess(res, data, 'ChargeBacks fetched successfully');
 };
 const getChargeBacks = async (req, res) => {
-  const { company_id, role, user_id, designation } = req.user;
-  const { page, limit, sortOrder, ...rest } = req.query;
+  const { role, user_id, designation } = req.user;
+  const { page, limit, sortOrder, company_id, ...rest } = req.query;
   const data = await getChargeBacksService(
     {
       company_id: company_id,

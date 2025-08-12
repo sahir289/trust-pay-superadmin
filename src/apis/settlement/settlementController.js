@@ -31,8 +31,8 @@ const getSettlementControllerById = async (req, res) => {
 
 const getSettlementController = async (req, res) => {
   // Extract user data and query parameters
-  const { company_id, user_id, role, designation } = req.user || {};
-  const { role_name, page, limit, search, sortBy, sortOrder, ...filters } =
+  const {  user_id, role, designation } = req.user || {};
+  const { role_name, page, limit, search, sortBy, sortOrder, company_id, ...filters } =
     req.query;
 
   const parsedPage = page === 'no_pagination' ? null : Number(page) || 1;

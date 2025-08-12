@@ -18,8 +18,8 @@ import { logger } from '../../utils/logger.js';
 
 const getPayInReportService = async (req) => {
   try {
-    const { company_id, role } = req.user;
-    const { code, startDate, endDate, status, updatedPayin } = req.query;
+    const { role } = req.user;
+    const { code, startDate, endDate, status, updatedPayin, company_id } = req.query;
     let startDateTime, endDateTime;
     if (startDate && endDate) {
       startDateTime = dayjs
@@ -71,8 +71,8 @@ const getPayInReportService = async (req) => {
 
 const getPayOutReportService = async (req) => {
   try {
-    const { company_id, role } = req.user;
-    const { code, startDate, endDate, status } = req.query;
+    const { role } = req.user;
+    const { code, startDate, endDate, status, company_id } = req.query;
     const startDateTime = dayjs
       .tz(`${startDate} 00:00:00`, 'Asia/Kolkata')
       .toISOString();
@@ -116,8 +116,8 @@ const getPayOutReportService = async (req) => {
 
 const getClientsAccountReportService = async (req) => {
   try {
-    const { company_id, role } = req.user;
-    const { code, startDate, endDate, role_name, page, limit } = req.query;
+    const { role } = req.user;
+    const { code, startDate, endDate, role_name, page, limit, company_id } = req.query;
 
     let result;
     let subMerchants = [];

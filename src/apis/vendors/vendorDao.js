@@ -497,11 +497,30 @@ export const getVendorsDaoArray = async (company_id, code) => {
       JOIN "User" ON "Vendor".user_id = "User".id 
       LEFT JOIN "Designation" ON "User".designation_id = "Designation".id 
       WHERE "Vendor".is_obsolete = false 
-      AND "Vendor"."company_id" = $1
-      AND "Vendor".user_id = ANY($2)
+      AND "Vendor".user_id = ANY($1)
     `;
 
-    let queryParams = [company_id, code];
+    let queryParams = [code];
+
+    if (company_id) {
+      // Parse company_id - handle both single values and comma-separated arrays
+      let companyIds = company_id;
+      if (typeof company_id === 'string' && company_id.includes(',')) {
+        companyIds = company_id.split(',').map(id => id.trim()).filter(id => id);
+      }
+      
+      if (Array.isArray(companyIds)) {
+        if (companyIds.length > 0) {
+          const placeholders = companyIds.map((_, idx) => `$${3 + idx}`).join(', ');
+          baseQuery += ` AND "Vendor".company_id IN (${placeholders})`;
+          queryParams.push(...companyIds);
+        }
+      } else {
+        baseQuery += ` AND "Vendor".company_id = $2`;
+        queryParams.push(companyIds);
+      }
+    }
+
     const result = await executeQuery(baseQuery, queryParams);
     return result.rows;
   } catch (error) {

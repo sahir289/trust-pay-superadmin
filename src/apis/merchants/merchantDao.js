@@ -731,10 +731,30 @@ export const getMerchantsDaoArray = async (company_id, code) => {
       LEFT JOIN "Designation" ON "User".designation_id = "Designation".id
       LEFT JOIN "User" creator ON "Merchant".created_by = creator.id 
       LEFT JOIN "User" updater ON "Merchant".updated_by = updater.id
-      WHERE "Merchant".company_id = $1 AND "Merchant".user_id = ANY($2)
+      WHERE "Merchant".user_id = ANY($1)
     `;
 
-    let queryParams = [company_id, code];
+    let queryParams = [code];
+
+    if (company_id) {
+      // Parse company_id - handle both single values and comma-separated arrays
+      let companyIds = company_id;
+      if (typeof company_id === 'string' && company_id.includes(',')) {
+        companyIds = company_id.split(',').map(id => id.trim()).filter(id => id);
+      }
+      
+      if (Array.isArray(companyIds)) {
+        if (companyIds.length > 0) {
+          const placeholders = companyIds.map((_, idx) => `$${3 + idx}`).join(', ');
+          baseQuery += ` AND "Merchant".company_id IN (${placeholders})`;
+          queryParams.push(...companyIds);
+        }
+      } else {
+        baseQuery += ` AND "Merchant".company_id = $2`;
+        queryParams.push(companyIds);
+      }
+    }
+
     const result = await executeQuery(baseQuery, queryParams);
     return result.rows;
   } catch (error) {

@@ -621,16 +621,22 @@ const getBankResponseDaoAll = async (
     }
 
     if (filters.company_id) {
-      whereConditions.push(
-        `"BankResponse"."company_id" = '${filters.company_id}'`,
-      );
+      // Parse company_id - handle both single values and comma-separated arrays
+      let companyIds = filters.company_id;
+      if (typeof companyIds === 'string' && companyIds.includes(',')) {
+        companyIds = companyIds.split(',').map(id => id.trim()).filter(Boolean);
+      }
+      if (Array.isArray(companyIds)) {
+        const placeholders = companyIds.map(id => `'${id}'`).join(', ');
+        whereConditions.push(`"BankResponse"."company_id" IN (${placeholders})`);
+      } else {
+        whereConditions.push(`"BankResponse"."company_id" = '${companyIds}'`);
+      }
     }
     
     if (filters.status) {
       filters.status = filters.status.split(',');
     }
-
-   
 
     if (whereConditions.length) {
       baseQuery += ' WHERE ' + whereConditions.join(' AND ');

@@ -179,6 +179,16 @@ export const buildSelectQuery = (
       continue;
     }
 
+    // Handle comma-separated company_id strings
+    if (key === 'company_id' && typeof value === 'string' && value.includes(',')) {
+      const companyIds = value.split(',').map(id => id.trim()).filter(id => id);
+      if (companyIds.length > 0) {
+        conditions.push(`${prefix}"${key}" = ANY($${values.length + 1})`);
+        values.push(companyIds);
+      }
+      continue;
+    }
+
     if (key.startsWith('config_') && key.endsWith('_contains')) {
       const variablePart = key.replace('config_', '').replace('_contains', '');
       const jsonColumn = `
